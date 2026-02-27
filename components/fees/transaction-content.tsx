@@ -1,0 +1,145 @@
+"use client"
+
+import { useState, useTransition } from "react"
+import { getFeeTransactions, getTransactionStats } from "@/actions/fee-transactions"
+import { TransactionList } from "@/components/fees/transaction-list"
+import { TransactionFilters } from "@/components/fees/transaction-filters"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { CheckCircle, Clock, XCircle } from 'lucide-react'
+
+interface TransactionContentProps {
+  initialTransactions: any[]
+  initialPagination: any
+  initialStats: any
+  classes: any[]
+  isAdmin: boolean
+}
+
+export function TransactionContent({
+  initialTransactions,
+  initialPagination,
+  initialStats,
+  classes,
+  isAdmin
+}: TransactionContentProps) {
+  const [transactions, setTransactions] = useState(initialTransactions)
+  const [pagination, setPagination] = useState(initialPagination)
+  const [stats, setStats] = useState(initialStats)
+  const [isPending, startTransition] = useTransition()
+
+  // Keep track of current filters to support pagination
+  const [currentFilters, setCurrentFilters] = useState<{
+    search?: string
+    classId?: string
+    feeType?: string
+    status?: string
+    startDate?: string
+    endDate?: string
+    month?: number
+    year?: number
+  }>({})
+
+  const fetchData = (filters: any, page: number) => {
+    startTransition(async () => {
+      const filterObj = {
+        startDate: filters.startDate ? new Date(filters.startDate) : undefined,
+        endDate: filters.endDate ? new Date(filters.endDate) : undefined,
+        classId: filters.classId,
+        feeType: filters.feeType,
+        status: filters.status,
+        searchQuery: filters.search,
+        month: filters.month,
+        year: filters.year
+      }
+
+      const [listData, statsData] = await Promise.all([
+        getFeeTransactions(filterObj, page),
+        getTransactionStats(filterObj)
+      ])
+
+      setTransactions(listData.transactions)
+      setPagination(listData.pagination)
+      setStats(statsData)
+    })
+  }
+
+  const handleFilter = (filters: any) => {
+    setCurrentFilters(filters)
+    fetchData(filters, 1)
+  }
+
+  const handlePageChange = (page: number) => {
+    fetchData(currentFilters, page)
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold">Fee Transactions</h1>
+        <p className="text-muted-foreground">View and manage all fee transactions</p>
+      </div>
+
+      <div className={`grid gap-4 md:grid-cols-3 ${isPending ? 'opacity-50' : ''}`}>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Verified</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">₹{stats.verified.amount.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">{stats.verified.count} transactions</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending</CardTitle>
+            <Clock className="h-4 w-4 text-yellow-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">₹{stats.pending.amount.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">{stats.pending.count} transactions</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Rejected</CardTitle>
+            <XCircle className="h-4 w-4 text-red-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">₹{stats.rejected.amount.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">{stats.rejected.count} transactions</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Filters</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TransactionFilters
+            classes={classes}
+            onFilter={handleFilter}
+            isLoading={isPending}
+          />
+        </CardContent>
+      </Card>
+
+      <Card className={isPending ? 'opacity-50 pointer-events-none' : ''}>
+        <CardHeader>
+          <CardTitle>Transactions ({pagination.totalRecords})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TransactionList
+            transactions={transactions}
+            pagination={pagination}
+            onPageChange={handlePageChange}
+            isAdmin={isAdmin}
+          />
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

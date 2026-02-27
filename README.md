@@ -1,36 +1,135 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# School Documents Management System
 
-## Getting Started
+## Overview
 
-First, run the development server:
+A specialized, production-ready school management platform designed for nursery and preschool operations. This system streamlines the core administrative and financial workflows of early education institutions, replacing manual record-keeping with a secure, digital-first approach. It focuses heavily on financial integrity, student lifecycle management, and operational transparency.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Problem It Solves
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Running a nursery school involves complex recurring billing (monthly fees, exam fees) and strict student safety requirements. Manual ledgers lead to:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Revenue Leakage**: Difficulty in tracking cumulative unpaid dues across months.
+- **Operational Friction**: Slow admission processes and manual ID card creation.
+- **Financial Opacity**: Lack of verification between cash collected by staff and actual bank deposits.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+This system solves these by enforcing a **Maker-Checker** workflow for finances, automating "Expected vs. Collected" calculations, and providing instant operational documents (ID cards, Receipts).
 
-## Learn More
+## Target Users
 
-To learn more about Next.js, take a look at the following resources:
+- **Super Admin / Principals**: For high-level financial oversight, staff management, and fee structure configuration.
+- **Administrative Staff**: For day-to-day operations like student admission, fee collection, and printing receipts.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Architecture & Technical Design
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Tech Stack
 
-## Deploy on Vercel
+- **Framework**: Next.js 16 (App Router) with React 19.
+- **Database**: MongoDB (via Mongoose) for flexible schema design tailored to hierarchical data.
+- **Authentication**: NextAuth.js (v4) with Role-Based Access Control (RBAC).
+- **Styling**: Tailwind CSS + Shadcn UI for a responsive, accessible component system.
+- **Visualization**: Recharts for financial analytics.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Design Patterns
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Server Actions**: Utilizes Next.js Server Actions for all data mutations and fetching, eliminating the need for a separate REST API layer and reducing latency.
+- **Aggregated Analytics**: Financial metrics (Revenue, Deficit) are calculated via complex MongoDB Aggregation Pipelines to ensure data accuracy without heavy application-layer processing.
+- **Component-Driven UI**: Modular architecture using atomic design principles for reusable UI elements (Forms, Tables, Dialogs).
+
+## Key Features
+
+### 1. Advanced Fee Management
+
+- **Complex Billing Cycles**: Supports Monthly, Examination, and Admission fee structures.
+- **Deficit Tracking**: Real-time calculation of "Unpaid" dues based on student admission date vs. current date (Cumulative Debt Logic).
+- **Maker-Checker Workflow**: Staff collects fees (status: `pending`), which Admins must verify (status: `verified`) to finalize revenue.
+- **Thermal Receipts**: Auto-generated, printable receipts for every transaction.
+
+### 2. Student Administration
+
+- **Digital Admission**: Comprehensive intake forms with validation for documents and guardian details.
+- **Bulk Operations**: One-click ID Card generation for entire classes, optimized for A4 printing.
+- **Searchable Directory**: Fast, indexed search for students by name or registration number.
+
+### 3. Analytics Dashboard
+
+- **Financial Health**: Visual breakdown of Collected vs. Pending vs. Unpaid revenue.
+- **Class Performance**: Revenue metrics aggregated by class to identify high-performing or deficit-heavy groups.
+- **Real-time Lists**: "Top Unpaid Students" list to prioritize follow-ups.
+
+### 4. Students Migration
+
+- **Bulk Upload**: Import student data from CSV files for efficient onboarding.
+- **Class Migration**: Seamlessly transfer students between classes while maintaining their unique identifiers.
+- **Students Activation & Deactivation**: Easily activate or deactivate students, updating their status and availability in the system.
+
+## Automation & Optimization
+
+- **Fee Calculation**: Automatically determines "Total Expected Revenue" based on active student count and class-specific fee rules, removing manual estimation.
+- **ID Card Generation**: Replaces manual design work with programmatic, bulk-printable ID cards using CSS print media queries.
+- **Receipt Generation**: Instant thermal-printer friendly receipts upon fee submission.
+
+## Installation & Setup
+
+### Prerequisites
+
+- Node.js 18+
+- MongoDB Instance (Local or Atlas)
+
+### Steps
+
+1. **Clone the repository**
+
+ ```bash
+
+   git clone <repository-url>
+   cd modern-nursery
+   ```
+
+2. **Install dependencies**
+
+ ```bash
+   pnpm install
+   ```
+
+3. **Configure Environment**
+   Create a `.env.local` file:
+
+   ```env
+   MONGODB_URI=mongodb://localhost:27017/modern-nursery
+   NEXTAUTH_SECRET=your-super-secret-key
+   NEXTAUTH_URL=http://localhost:3000
+   ```
+
+4. **Seed Database (Optional)**
+   Initialize with default admin and classes:
+
+   ```bash
+   pnpm ts-node scripts/seed.ts
+   ```
+
+5. **Run Development Server**
+
+   ```bash
+   pnpm dev
+   ```
+6. **System Initialization**
+   Initialize with default admin and classes:
+   visit the `/init` endpoint in your browser:
+
+   ```
+   http://localhost:3000/init
+   ```
+
+## Engineering Highlights
+
+- **Cumulative Deficit Logic**: The system calculates unpaid fees by iterating from a student's admission date to the current date, checking against paid transactions. This handles edge cases where a student joins mid-year or skips a specific month.
+- **Optimized Rendering**: Uses React Server Components (RSC) to render heavy dashboards on the server, sending minimal JS to the client.
+- **Print Optimization**: Custom CSS `@media print` rules ensure ID cards and receipts print perfectly on physical media without UI clutter.
+- **Type Safety**: End-to-end type safety using TypeScript and Zod for form validation, preventing runtime data corruption.
+
+## Future Improvements
+
+- **Automated SMS/Email/WhatsApp Notifications**: Integration with Twilio/SendGrid to send automatic payment reminders.
+- **Attendance System**: Biometric or manual attendance tracking linked to the student profile.
+- **Parent Portal**: A read-only view for parents to check fee status and download report cards.
+- **Mobile App**: React Native for iOS and Android with push notifications for fee reminders.

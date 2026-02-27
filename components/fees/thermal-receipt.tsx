@@ -1,0 +1,138 @@
+import { format } from 'date-fns'
+
+interface ReceiptProps {
+    receiptData: {
+        receiptNumber: string
+        studentName: string
+        studentRegNo: string
+        className: string
+        feeType: 'monthly' | 'examination' | 'admission' | 'other'
+        months?: number[]
+        year: number
+        examType?: string
+        title?: string
+        amount: number
+        date: Date
+    }
+}
+
+export function ThermalReceipt({ receiptData }: ReceiptProps) {
+    const getFeeDescription = () => {
+        const { feeType, months, year, examType, title } = receiptData
+
+        if (feeType === 'monthly' && months && months.length > 0) {
+            const monthNames = months.map(m => format(new Date(year, m - 1), 'MMM')).join(', ')
+            if (months.length === 1) {
+                return `Monthly Fee - ${monthNames} ${year}`
+            }
+            return `Monthly Fee - ${monthNames} ${year}`
+        }
+
+        if (feeType === 'examination') {
+            return `Examination Fee - ${examType || 'Annual'} ${year}`
+        }
+
+        if (feeType === 'admission') {
+            return `Admission Fee - ${year}`
+        }
+
+        if (feeType === 'other') {
+            return title || 'Other Fee'
+        }
+
+        return 'Fee Payment'
+    }
+
+    return (
+        <div className="thermal-receipt bg-white text-black p-6 max-w-[80mm] mx-auto font-mono text-sm">
+            {/* School Logo/Emblem */}
+            <div className="flex justify-center mb-4">
+                <div className="w-20 h-20 rounded-full border-4 border-black flex items-center justify-center">
+                    <span className="text-2xl font-bold">MNS</span>
+                </div>
+            </div>
+
+            {/* School Name */}
+            <div className="text-center mb-6">
+                <h1 className="text-xl font-bold">Modern Nursery School</h1>
+                <p className="text-xs mt-1">Fee Receipt</p>
+            </div>
+
+            {/* Divider */}
+            <div className="border-t-2 border-dashed border-black my-4"></div>
+
+            {/* Receipt Details */}
+            <div className="space-y-2 text-xs">
+                <div className="flex justify-between">
+                    <span className="font-semibold">Receipt No:</span>
+                    <span>{receiptData.receiptNumber}</span>
+                </div>
+
+                <div className="flex justify-between">
+                    <span className="font-semibold">Date:</span>
+                    <span>{format(receiptData.date, 'dd MMM yyyy')}</span>
+                </div>
+
+                <div className="flex justify-between">
+                    <span className="font-semibold">Time:</span>
+                    <span>{format(receiptData.date, 'hh:mm a')}</span>
+                </div>
+            </div>
+
+            {/* Divider */}
+            <div className="border-t-2 border-dashed border-black my-4"></div>
+
+            {/* Student Details */}
+            <div className="space-y-2 text-xs">
+                <div>
+                    <span className="font-semibold">Student Name:</span>
+                    <div className="ml-2">{receiptData.studentName}</div>
+                </div>
+
+                <div className="flex justify-between">
+                    <span className="font-semibold">Reg. No:</span>
+                    <span>{receiptData.studentRegNo}</span>
+                </div>
+
+                <div className="flex justify-between">
+                    <span className="font-semibold">Class:</span>
+                    <span>{receiptData.className}</span>
+                </div>
+            </div>
+
+            {/* Divider */}
+            <div className="border-t-2 border-dashed border-black my-4"></div>
+
+            {/* Fee Details */}
+            <div className="space-y-2 text-xs">
+                <div>
+                    <span className="font-semibold">Fee Type:</span>
+                    <div className="ml-2 mt-1">{getFeeDescription()}</div>
+                </div>
+
+                <div className="flex justify-between items-center mt-4 text-base font-bold">
+                    <span>Amount Paid:</span>
+                    <span>₹{receiptData.amount.toLocaleString()}</span>
+                </div>
+            </div>
+
+            {/* Divider */}
+            <div className="border-t-2 border-dashed border-black my-4"></div>
+
+            {/* Footer Notes */}
+            <div className="text-xs space-y-2">
+                <p className="font-semibold">कृपया समय पर फीस जमा करें</p>
+                <p>कृपया फीस जमा करने के लिए अपना फीस कार्ड अपने साथ लाएं</p>
+                <p>कृपया अपने बच्चे को पढ़ाई में सहयोग करें</p>
+            </div>
+
+            {/* Divider */}
+            <div className="border-t-2 border-dashed border-black my-4"></div>
+
+            {/* Thank You */}
+            <div className="text-center text-xs">
+                <p className="font-semibold">Thank You!</p>
+            </div>
+        </div>
+    )
+}

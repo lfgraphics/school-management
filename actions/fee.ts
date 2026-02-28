@@ -55,8 +55,15 @@ export async function getPendingFees() {
   });
 }
 
+import logger from "@/lib/logger"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+
 export async function verifyFee(transactionId: string, action: 'approve' | 'reject', userId: string) {
   try {
+    const session = await getServerSession(authOptions);
+    if (session?.user.role !== 'admin') throw new Error('Unauthorized');
+
     await dbConnect();
     
     const status = action === 'approve' ? 'verified' : 'rejected';
@@ -72,6 +79,7 @@ export async function verifyFee(transactionId: string, action: 'approve' | 'reje
     
     return { success: true };
   } catch (error: unknown) {
+    logger.error(error, `Failed to verify fee transaction ${transactionId}`);
     const message = error instanceof Error ? error.message : "An unknown error occurred";
     return { success: false, error: message };
   }

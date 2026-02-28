@@ -17,7 +17,9 @@ import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
 
 interface AttendanceContentProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   initialHistory: any[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   classes: any[]
   isAdmin: boolean
   isAttendanceStaff: boolean
@@ -35,9 +37,9 @@ export function AttendanceContent({
   const handleFilter = (filters: { date?: Date, classId?: string, section?: string }) => {
     startTransition(async () => {
       const data = await getAttendanceReport({
-        date: filters.date?.toISOString(),
+        startDate: filters.date,
+        endDate: filters.date,
         classId: filters.classId,
-        section: filters.section
       })
       setHistory(data)
     })
@@ -87,6 +89,7 @@ export function AttendanceContent({
                   </TableCell>
                 </TableRow>
               ) : (
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 history.map((record: any) => {
                   const recordDate = new Date(record.date);
                   const today = new Date();

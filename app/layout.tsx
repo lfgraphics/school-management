@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Toaster } from "@/components/ui/sonner";
+import { ServiceWorkerRegister } from "@/components/sw-register";
+import { InstallPrompt } from "@/components/install-prompt";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,6 +19,20 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Modern Nursery Management",
   description: "Efficient nursery school management system",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Modern Nursery Management",
+  },
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon-16x16.png",
+    apple: "/apple-touch-icon.png",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  manifest: "/manifest.ts",
 };
 
 export default function RootLayout({
@@ -29,6 +45,8 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <ServiceWorkerRegister />
+        <InstallPrompt />
         <Providers>
           {children}
           <Toaster richColors closeButton />

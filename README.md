@@ -18,6 +18,7 @@ This system solves these by enforcing a **Maker-Checker** workflow for finances,
 
 - **Super Admin / Principals**: For high-level financial oversight, staff management, and fee structure configuration.
 - **Administrative Staff**: For day-to-day operations like student admission, fee collection, and printing receipts.
+- **Attendance Staff**: Dedicated role for daily attendance tracking and holiday management.
 
 ## Architecture & Technical Design
 
@@ -28,6 +29,7 @@ This system solves these by enforcing a **Maker-Checker** workflow for finances,
 - **Authentication**: NextAuth.js (v4) with Role-Based Access Control (RBAC).
 - **Styling**: Tailwind CSS + Shadcn UI for a responsive, accessible component system.
 - **Visualization**: Recharts for financial analytics.
+- **PWA**: Native Service Workers + Web Manifest for offline support and installability.
 
 ### Design Patterns
 
@@ -50,13 +52,32 @@ This system solves these by enforcing a **Maker-Checker** workflow for finances,
 - **Bulk Operations**: One-click ID Card generation for entire classes, optimized for A4 printing.
 - **Searchable Directory**: Fast, indexed search for students by name or registration number.
 
-### 3. Analytics Dashboard
+### 3. Analytics & Reports
 
 - **Financial Health**: Visual breakdown of Collected vs. Pending vs. Unpaid revenue.
 - **Class Performance**: Revenue metrics aggregated by class to identify high-performing or deficit-heavy groups.
 - **Real-time Lists**: "Top Unpaid Students" list to prioritize follow-ups.
+- **Exportable Reports**: Generate detailed PDF/Excel reports for finances and attendance.
 
-### 4. Students Migration
+### 4. Attendance Management
+
+- **Daily Tracking**: Efficient interface for marking student attendance.
+- **Holiday Calendar**: Manage school holidays and non-instructional days.
+- **Attendance Stats**: Visual insights into student presence and absenteeism.
+
+### 5. Staff & Expense Management
+
+- **Teacher Profiles**: Manage staff details and assign roles (Admin, Staff, Attendance Staff).
+- **Expense Tracking**: Record and categorize operational expenses.
+- **Financial Oversight**: Monitor total expenses against collected revenue.
+
+### 6. Progressive Web App (PWA)
+
+- **Installable**: Add to Home Screen support for iOS and Android devices.
+- **Offline Capable**: Service Worker caching ensures core functionality works even with spotty internet.
+- **Mobile Optimized**: Responsive design that feels like a native app on mobile devices.
+
+### 7. Students Migration
 
 - **Bulk Upload**: Import student data from CSV files for efficient onboarding.
 - **Class Migration**: Seamlessly transfer students between classes while maintaining their unique identifiers.
@@ -67,6 +88,7 @@ This system solves these by enforcing a **Maker-Checker** workflow for finances,
 - **Fee Calculation**: Automatically determines "Total Expected Revenue" based on active student count and class-specific fee rules, removing manual estimation.
 - **ID Card Generation**: Replaces manual design work with programmatic, bulk-printable ID cards using CSS print media queries.
 - **Receipt Generation**: Instant thermal-printer friendly receipts upon fee submission.
+- **Dynamic Manifest**: Automatically generates web manifest for PWA installation.
 
 ## Installation & Setup
 
@@ -79,15 +101,14 @@ This system solves these by enforcing a **Maker-Checker** workflow for finances,
 
 1. **Clone the repository**
 
- ```bash
-
+   ```bash
    git clone <repository-url>
    cd modern-nursery
    ```
 
 2. **Install dependencies**
 
- ```bash
+   ```bash
    pnpm install
    ```
 
@@ -112,11 +133,12 @@ This system solves these by enforcing a **Maker-Checker** workflow for finances,
    ```bash
    pnpm dev
    ```
+
 6. **System Initialization**
    Initialize with default admin and classes:
    visit the `/init` endpoint in your browser:
 
-   ```
+   ```bash
    http://localhost:3000/init
    ```
 
@@ -126,10 +148,10 @@ This system solves these by enforcing a **Maker-Checker** workflow for finances,
 - **Optimized Rendering**: Uses React Server Components (RSC) to render heavy dashboards on the server, sending minimal JS to the client.
 - **Print Optimization**: Custom CSS `@media print` rules ensure ID cards and receipts print perfectly on physical media without UI clutter.
 - **Type Safety**: End-to-end type safety using TypeScript and Zod for form validation, preventing runtime data corruption.
+- **PWA Integration**: Custom service worker and install prompt handling for a seamless mobile experience, including iOS-specific instructions.
 
 ## Future Improvements
 
 - **Automated SMS/Email/WhatsApp Notifications**: Integration with Twilio/SendGrid to send automatic payment reminders.
-- **Attendance System**: Biometric or manual attendance tracking linked to the student profile.
 - **Parent Portal**: A read-only view for parents to check fee status and download report cards.
-- **Mobile App**: React Native for iOS and Android with push notifications for fee reminders.
+- **Biometric Integration**: Link attendance system with hardware scanners.

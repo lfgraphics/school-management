@@ -5,6 +5,8 @@ import User from "@/models/User"
 import bcrypt from "bcryptjs"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 
 const createStaffSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -13,8 +15,13 @@ const createStaffSchema = z.object({
   role: z.enum(['staff', 'attendance_staff']).default('staff'),
 })
 
+import logger from "@/lib/logger"
+
 export async function createStaff(data: z.infer<typeof createStaffSchema>) {
   try {
+    const session = await getServerSession(authOptions);
+    if (session?.user.role !== 'admin') throw new Error('Unauthorized');
+
     // Validate input
     createStaffSchema.parse(data);
     
@@ -38,6 +45,7 @@ export async function createStaff(data: z.infer<typeof createStaffSchema>) {
     
     return { success: true };
   } catch (error: unknown) {
+    logger.error(error, "Failed to create staff");
     const message = error instanceof Error ? error.message : "An unknown error occurred";
     return { success: false, error: message };
   }
@@ -70,11 +78,15 @@ export async function getStaffList() {
 
 export async function toggleStaffStatus(id: string, isActive: boolean) {
   try {
+    const session = await getServerSession(authOptions);
+    if (session?.user.role !== 'admin') throw new Error('Unauthorized');
+
     await dbConnect();
     await User.findByIdAndUpdate(id, { isActive });
     revalidatePath("/admin/staff");
     return { success: true };
   } catch (error: unknown) {
+    logger.error(error, `Failed to toggle staff status for ${id}`);
     const message = error instanceof Error ? error.message : "An unknown error occurred";
     return { success: false, error: message };
   }
@@ -82,11 +94,15 @@ export async function toggleStaffStatus(id: string, isActive: boolean) {
 
 export async function deleteStaff(id: string) {
   try {
+    const session = await getServerSession(authOptions);
+    if (session?.user.role !== 'admin') throw new Error('Unauthorized');
+
     await dbConnect();
     await User.findByIdAndDelete(id);
     revalidatePath("/admin/staff");
     return { success: true };
   } catch (error: unknown) {
+    logger.error(error, `Failed to delete staff ${id}`);
     const message = error instanceof Error ? error.message : "An unknown error occurred";
     return { success: false, error: message };
   }

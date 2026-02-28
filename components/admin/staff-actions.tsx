@@ -16,8 +16,10 @@ import { useState } from "react"
 import { Loader2 } from "lucide-react"
 
 interface StaffActionsProps {
-  id: string
-  isActive: boolean
+    id: string;
+    isActive: boolean;
+    onStatusChange?: (id: string, newStatus: boolean) => void;
+    onDelete?: (id: string) => void;
 }
 
 export function StaffActions({ id, isActive }: StaffActionsProps) {
@@ -32,7 +34,7 @@ export function StaffActions({ id, isActive }: StaffActionsProps) {
       } else {
         toast.error(`Failed to update status: ${result.error}`)
       }
-    } catch (error) {
+    } catch {
       toast.error("Something went wrong")
     } finally {
       setIsLoading(false)
@@ -50,7 +52,7 @@ export function StaffActions({ id, isActive }: StaffActionsProps) {
       } else {
         toast.error(`Failed to delete staff: ${result.error}`)
       }
-    } catch (error) {
+    } catch {
       toast.error("Something went wrong")
     } finally {
       setIsLoading(false)

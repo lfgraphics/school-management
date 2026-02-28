@@ -69,23 +69,56 @@ interface ExpenseUpdates extends Partial<z.infer<typeof expenseSchema>> {
     }[];
     teacherId?: string | undefined;
 }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type ExpenseUpdatesType = ExpenseUpdates;
 
-export async function createExpense(data: z.infer<typeof expenseSchema>) {
+import { saveFile } from "@/lib/upload";
+
+export async function createExpense(formData: FormData) {
   try {
     const session = await getServerSession(authOptions);
     if (!session || !session.user?.id) {
         return { success: false, error: "Unauthorized" };
     }
     const userId = session.user.id;
+    
+    // Manual parsing
+    const data: Partial<z.infer<typeof expenseSchema>> = {};
+    const title = formData.get('title') as string;
+    const description = formData.get('description') as string;
+    const amount = formData.get('amount') as string;
+    const expenseDate = formData.get('expenseDate') as string;
+    const category = formData.get('category') as string;
+    const teacherId = formData.get('teacherId') as string;
+    const salaryMonth = formData.get('salaryMonth') as string;
+    const salaryYear = formData.get('salaryYear') as string;
 
+    if (title) data.title = title;
+    if (description) data.description = description;
+    if (amount) data.amount = parseFloat(amount);
+    if (expenseDate) data.expenseDate = new Date(expenseDate);
+    if (category) data.category = category as "Salary" | "Maintenance" | "Supplies" | "Utilities" | "Others";
+    if (teacherId) data.teacherId = teacherId;
+    if (salaryMonth) data.salaryMonth = parseInt(salaryMonth);
+    if (salaryYear) data.salaryYear = parseInt(salaryYear);
+
+    // Validate using Zod schema (Partial parse or reconstruct object)
     const validatedData = expenseSchema.parse(data);
+    
     await dbConnect();
     
-    // Mutable copy of data for DB insertion
-    const expenseData: Partial<z.infer<typeof expenseSchema>> = { ...validatedData };
+    // Mutable copy
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const expenseData: any = { ...validatedData };
 
     if (!expenseData.teacherId) {
         delete expenseData.teacherId;
+    }
+
+    // Receipt File
+    const receiptFile = formData.get('receipt') as File;
+    if (receiptFile && receiptFile.size > 0) {
+        expenseData.receipt = await saveFile(receiptFile, 'expenses');
     }
 
     // Salary Duplicate Check
@@ -139,7 +172,7 @@ export async function createExpense(data: z.infer<typeof expenseSchema>) {
   }
 }
 
-export async function updateExpense(id: string, data: Partial<z.infer<typeof expenseSchema>>) {
+export async function updateExpense(id: string, formData: FormData) {
   try {
     const session = await getServerSession(authOptions);
     if (!session || !session.user?.id) {
@@ -153,48 +186,88 @@ export async function updateExpense(id: string, data: Partial<z.infer<typeof exp
     if (!expense) {
       return { success: false, error: "Expense not found" };
     }
+    
+    // Parse updates
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updates: any = {};
+    
+    const title = formData.get('title') as string;
+    if (title !== null) updates.title = title; // Allow empty string?
+    
+    const description = formData.get('description') as string;
+    if (description !== null) updates.description = description;
+    
+    const amount = formData.get('amount') as string;
+    if (amount) updates.amount = parseFloat(amount);
+    
+    const expenseDate = formData.get('expenseDate') as string;
+    if (expenseDate) updates.expenseDate = new Date(expenseDate);
+    
+    const category = formData.get('category') as string;
+    if (category) updates.category = category;
+    
+    const teacherId = formData.get('teacherId') as string;
+    if (teacherId) updates.teacherId = teacherId;
+    
+    const salaryMonth = formData.get('salaryMonth') as string;
+    if (salaryMonth) updates.salaryMonth = parseInt(salaryMonth);
+    
+    const salaryYear = formData.get('salaryYear') as string;
+    if (salaryYear) updates.salaryYear = parseInt(salaryYear);
+
+    // Receipt File
+    const receiptFile = formData.get('receipt') as File;
+    if (receiptFile && receiptFile.size > 0) {
+        updates.receipt = await saveFile(receiptFile, 'expenses');
+    }
 
     // If updating to salary, check duplicates again (excluding self)
-    if (data.category === 'Salary' || (expense.category === 'Salary' && (data.salaryMonth || data.salaryYear))) {
-        const tId = data.teacherId || expense.teacherId;
-        const sMonth = data.salaryMonth || expense.salaryMonth;
-        const sYear = data.salaryYear || expense.salaryYear;
+    // We need to merge existing values to check properly
+    const checkCategory = updates.category || expense.category;
+    
+    if (checkCategory === 'Salary') {
+        const tId = updates.teacherId || expense.teacherId;
+        const sMonth = updates.salaryMonth || expense.salaryMonth;
+        const sYear = updates.salaryYear || expense.salaryYear;
 
+        // Only check if we have enough info (might be incomplete update, but UI validates)
         if (tId && sMonth && sYear) {
-            const existingSalary = await Expense.findOne({
-                category: 'Salary',
-                teacherId: tId,
-                salaryMonth: sMonth,
-                salaryYear: sYear,
-                status: 'active',
-                _id: { $ne: id }
-            });
+            // Only run check if one of these fields CHANGED or we are switching category
+            if (updates.category === 'Salary' || updates.teacherId || updates.salaryMonth || updates.salaryYear) {
+                 const existingSalary = await Expense.findOne({
+                    category: 'Salary',
+                    teacherId: tId,
+                    salaryMonth: sMonth,
+                    salaryYear: sYear,
+                    status: 'active',
+                    _id: { $ne: id }
+                });
 
-            if (existingSalary) {
-                return { success: false, error: "Another salary record exists for this teacher/month/year." };
+                if (existingSalary) {
+                    return { success: false, error: "Another salary record exists for this teacher/month/year." };
+                }
             }
         }
     }
 
-    const updates: ExpenseUpdates = {
-        ...data,
-        auditLog: [
-            ...expense.auditLog,
-            {
-                action: 'Updated',
-                performedBy: userId,
-                date: new Date(),
-                details: `Updated fields: ${Object.keys(data).join(', ')}`
-            }
-        ]
+    // Audit Log
+    const auditEntry = {
+        action: 'Updated',
+        performedBy: userId,
+        date: new Date(),
+        details: `Updated via form`
     };
 
     if (updates.teacherId === "") {
         delete updates.teacherId;
-        updates.teacherId = undefined; // Use undefined instead of null to match type
+        updates.teacherId = undefined; 
     }
 
-    await Expense.findByIdAndUpdate(id, updates);
+    await Expense.findByIdAndUpdate(id, {
+        ...updates,
+        $push: { auditLog: auditEntry }
+    });
+    
     revalidatePath("/admin/expenses");
     revalidatePath("/admin/dashboard");
     return { success: true };

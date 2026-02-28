@@ -31,7 +31,7 @@ export async function addHoliday(data: z.infer<typeof holidaySchema>) {
     revalidatePath("/attendance/dashboard");
     revalidatePath("/attendance/holidays");
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "An unknown error occurred";
     return { success: false, error: message };
   }
@@ -44,11 +44,20 @@ export async function getHolidays(limit: number = 20) {
     .limit(limit)
     .lean();
     
-  return holidays.map((h: any) => ({
-    id: h._id.toString(),
-    date: h.date.toISOString(),
-    description: h.description
-  }));
+  interface HolidayDoc {
+    _id: { toString: () => string };
+    date: Date;
+    description: string;
+  }
+    
+  return holidays.map((h: unknown) => {
+    const holiday = h as HolidayDoc;
+    return {
+      id: holiday._id.toString(),
+      date: holiday.date.toISOString(),
+      description: holiday.description
+    };
+  });
 }
 
 export async function deleteHoliday(id: string) {
@@ -58,7 +67,7 @@ export async function deleteHoliday(id: string) {
     revalidatePath("/attendance/dashboard");
     revalidatePath("/attendance/holidays");
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "An unknown error occurred";
     return { success: false, error: message };
   }
@@ -76,7 +85,7 @@ export async function checkIsHoliday(dateStr: string) {
 
   const holiday = await Holiday.findOne({ date }).lean();
   if (holiday) {
-      return { isHoliday: true, reason: (holiday as any).description };
+    return { isHoliday: true, reason: (holiday as { description: string }).description };
   }
 
   return { isHoliday: false, reason: null };

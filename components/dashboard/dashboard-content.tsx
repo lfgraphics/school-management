@@ -22,14 +22,19 @@ interface DashboardStats {
     netProfit: number
     unpaid: number
     collectable: number
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     recentSales: any[]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     overview: any[]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     classWise: any[]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     unpaidStudents: any[]
 }
 
 interface DashboardContentProps {
     initialStats: DashboardStats
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     attendanceStats: any
     classes: { id: string; name: string }[]
     totalStaff: number

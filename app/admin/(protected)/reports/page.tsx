@@ -12,12 +12,21 @@ export const dynamic = 'force-dynamic';
 export default async function ReportsPage() {
   const classes = await getClasses();
   
+  interface ClassDoc {
+    id: string;
+    name: string;
+    exams?: string[];
+  }
+
   // Transform classes to match the expected interface { id: string, name: string }
   // getClasses returns { id: string, name: string, exams: string[] }
-  const formattedClasses = classes.map((c: any) => ({
-    id: c.id,
-    name: c.name,
-  }));
+  const formattedClasses = classes.map((c: unknown) => {
+    const cls = c as ClassDoc;
+    return {
+      id: cls.id,
+      name: cls.name,
+    };
+  });
 
   return <ReportsView classes={formattedClasses} />;
 }

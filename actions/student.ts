@@ -76,8 +76,25 @@ export async function getNextRegistrationNumber() {
   }
   
   // Return the *next* number (seq + 1) formatted
-  const nextSeq = counter.seq + 1;
-  return String(nextSeq).padStart(4, '0');
+  let nextSeq = counter.seq + 1;
+  let nextRegNo = String(nextSeq).padStart(4, '0');
+
+  // Check for collision and auto-heal
+  // If the calculated next number already exists in Students, the counter is stale.
+  let attempts = 0;
+  while (attempts < 100 && await Student.exists({ registrationNumber: nextRegNo })) {
+      // Update counter to match the existing student's number
+      await Counter.findByIdAndUpdate(
+          'registrationNumber',
+          { $set: { seq: nextSeq } },
+          { new: true }
+      );
+      nextSeq++;
+      nextRegNo = String(nextSeq).padStart(4, '0');
+      attempts++;
+  }
+
+  return nextRegNo;
 }
 
 // Function to actually increment and get
@@ -88,89 +105,141 @@ async function incrementRegistrationNumber() {
     { $inc: { seq: 1 } },
     { new: true, upsert: true, setDefaultsOnInsert: true }
   );
-  // If we just created it (upsert), and default is 0, we might want to start at 215.
-  // But setDefaultsOnInsert sets seq to 0. 
-  // If it was just created, seq became 1. We want 215.
-  // So we should handle the initialization carefully.
-  // Better approach: ensure it exists or use a safer update.
   
-  // If the counter was 0 (fresh), we want it to jump to 215?
-  // Or just trust the `getNextRegistrationNumber` initialized it.
-  
-  // Let's rely on `getNextRegistrationNumber` having been called or just safe check.
-  if (counter.seq < 215) {
-      // If for some reason it's low (e.g. fresh DB), force it to 215
-      const updated = await Counter.findByIdAndUpdate(
-          'registrationNumber',
-          { $set: { seq: 215 } },
-          { new: true }
-      );
-      return String(updated.seq).padStart(4, '0');
-  }
-
   return String(counter.seq).padStart(4, '0');
 }
 
 
-export async function registerStudent(data: z.infer<typeof registerStudentSchema>) {
+import logger from "@/lib/logger";
+import { saveFile } from "@/lib/upload";
+
+export async function registerStudent(formData: FormData) {
   try {
-    registerStudentSchema.parse(data);
     await dbConnect();
+
+    // Parse manual JSON fields
+    const rawData = {
+      name: formData.get('name') as string,
+      classId: formData.get('classId') as string,
+      section: formData.get('section') as "A" | "B" | "C" | "D",
+      rollNumber: formData.get('rollNumber') as string,
+      dateOfBirth: formData.get('dateOfBirth') as string,
+      dateOfAdmission: formData.get('dateOfAdmission') as string,
+      gender: formData.get('gender') as "Male" | "Female" | "Other",
+      address: formData.get('address') as string,
+      fatherName: formData.get('fatherName') as string,
+      fatherAadhaar: formData.get('fatherAadhaar') as string,
+      motherName: formData.get('motherName') as string,
+      motherAadhaar: formData.get('motherAadhaar') as string,
+      pen: formData.get('pen') as string,
+      lastInstitution: formData.get('lastInstitution') as string,
+      tcNumber: formData.get('tcNumber') as string,
+      registrationNumber: formData.get('registrationNumber') as string,
+    };
+
+    // Extract arrays (mobile, email)
+    const mobile = formData.getAll('mobile') as string[];
+    const email = formData.getAll('email') as string[];
+
+    // --- File Upload Handling ---
     
-    let registrationNumber = data.registrationNumber;
+    // 1. Profile Photo
+    const photoFile = formData.get('photo') as File;
+    let photoUrl = null;
+    if (photoFile && photoFile.size > 0) {
+        photoUrl = await saveFile(photoFile, 'students/photos');
+    }
+
+    // 2. Documents
+    const documentMetaStr = formData.get('document_meta') as string;
+    const documentMeta = documentMetaStr ? JSON.parse(documentMetaStr) : [];
+    const documentFiles = formData.getAll('document_files') as File[];
+    
+    const processedDocuments = [];
+    
+    if (documentMeta.length > 0) {
+        for (let i = 0; i < documentMeta.length; i++) {
+            const file = documentFiles[i];
+            let fileUrl = "";
+            
+            if (file && file.size > 0) {
+                fileUrl = await saveFile(file, 'students/documents');
+            }
+            
+            if (fileUrl) {
+                processedDocuments.push({
+                    type: documentMeta[i].type,
+                    documentNumber: documentMeta[i].documentNumber,
+                    image: fileUrl
+                });
+            }
+        }
+    }
+
+    // --- End File Upload Handling ---
+
+    let registrationNumber = rawData.registrationNumber;
     
     if (!registrationNumber) {
-        // Auto-increment
         registrationNumber = await incrementRegistrationNumber();
     } else {
-        // Check uniqueness if manually provided
         const existing = await Student.findOne({ registrationNumber });
         if (existing) {
              return { success: false, error: "Registration Number already exists" };
         }
+
+        // Sync counter if manual registration number is provided (and it's a number)
+        // This ensures the auto-increment sequence catches up if the user manually uses the "next" number
+        const regNumInt = parseInt(registrationNumber);
+        if (!isNaN(regNumInt)) {
+             const counter = await Counter.findById('registrationNumber');
+             // If counter doesn't exist or provided number is higher than current sequence
+             if (!counter || regNumInt > counter.seq) {
+                 await Counter.findByIdAndUpdate(
+                    'registrationNumber',
+                    { $set: { seq: regNumInt } },
+                    { upsert: true, new: true }
+                 );
+             }
+        }
     }
 
-    // Prepare parents object
     const parents = {
         father: {
-            name: data.parents?.father?.name || data.fatherName,
-            aadhaarNumber: data.parents?.father?.aadhaarNumber
+            name: rawData.fatherName,
+            aadhaarNumber: rawData.fatherAadhaar
         },
         mother: {
-            name: data.parents?.mother?.name || data.motherName,
-            aadhaarNumber: data.parents?.mother?.aadhaarNumber
+            name: rawData.motherName,
+            aadhaarNumber: rawData.motherAadhaar
         }
     };
     
     await Student.create({
       registrationNumber,
-      name: data.name,
-      classId: data.classId,
-      section: data.section,
-      rollNumber: data.rollNumber,
-      dateOfBirth: new Date(data.dateOfBirth),
-      dateOfAdmission: data.dateOfAdmission ? new Date(data.dateOfAdmission) : new Date(),
-      admissionDate: new Date(), // Keep synced for now
-      gender: data.gender,
+      name: rawData.name,
+      classId: rawData.classId,
+      section: rawData.section,
+      rollNumber: rawData.rollNumber,
+      dateOfBirth: new Date(rawData.dateOfBirth),
+      dateOfAdmission: rawData.dateOfAdmission ? new Date(rawData.dateOfAdmission) : new Date(),
+      gender: rawData.gender,
       
       parents,
-      // Keep flat fields for now if needed, but schema handles them.
-      // We updated schema to put them in parents.
-      // But we kept fatherName/motherName in schema as deprecated.
       fatherName: parents.father.name,
       motherName: parents.mother.name,
 
-      address: data.address,
+      address: rawData.address,
       contacts: {
-        mobile: data.mobile,
-        email: data.email || []
+        mobile: mobile,
+        email: email
       },
-      photo: data.photo,
-      documents: data.documents,
+      photo: photoUrl,
+      documents: processedDocuments,
       
-      pen: data.pen,
-      lastInstitution: data.lastInstitution,
-      tcNumber: data.tcNumber,
+      pen: rawData.pen,
+      lastInstitution: rawData.lastInstitution,
+      tcNumber: rawData.tcNumber,
       
       isActive: true,
     });
@@ -179,6 +248,7 @@ export async function registerStudent(data: z.infer<typeof registerStudentSchema
     
     return { success: true, regNo: registrationNumber };
   } catch (error: unknown) {
+    logger.error(error, "Failed to register student");
     const message = error instanceof Error ? error.message : "An unknown error occurred";
     return { success: false, error: message };
   }
@@ -302,13 +372,18 @@ interface StudentDoc {
     section?: string;
     rollNumber?: string;
     fatherName: string; // legacy
-    parents?: { father?: { name?: string }, mother?: { name?: string } };
+    parents?: { father?: { name?: string; aadhaarNumber?: string }, mother?: { name?: string; aadhaarNumber?: string } };
     contacts?: { mobile?: string[]; email?: string[] };
     photo?: string;
     motherName: string; // legacy
     dateOfBirth: Date;
+    dateOfAdmission?: Date;
     address: string;
     documents?: { type: string; image: string; documentNumber?: string; _id?: { toString: () => string } }[];
+    pen?: string;
+    lastInstitution?: string;
+    tcNumber?: string;
+    createdAt?: Date;
 }
 
 export async function getStudents(searchQuery?: string, classId?: string) {
@@ -317,10 +392,14 @@ export async function getStudents(searchQuery?: string, classId?: string) {
   const query: StudentQuery = { isActive: true };
   
   if (searchQuery) {
-    query.$or = [
-      { name: { $regex: searchQuery, $options: 'i' } },
-      { registrationNumber: { $regex: searchQuery, $options: 'i' } },
+    const regex = { $regex: searchQuery, $options: 'i' };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const orConditions: any[] = [
+      { name: regex },
+      { registrationNumber: regex },
+      { rollNumber: regex }
     ];
+    query.$or = orConditions;
   }
   
   if (classId && classId !== "all") {
@@ -351,52 +430,42 @@ export async function getStudents(searchQuery?: string, classId?: string) {
 
 export async function getStudentById(id: string) {
   await dbConnect();
-  const studentResult = await Student.findById(id).populate('classId', 'name').lean();
-  if (!studentResult) return null;
+  const student = await Student.findById(id).populate('classId', 'name').lean();
+  if (!student) return null;
   
-  const student = studentResult as unknown as StudentDoc & { 
-      pen?: string; 
-      lastInstitution?: string; 
-      tcNumber?: string; 
-      dateOfAdmission?: Date;
-      parents?: {
-          father?: { name?: string; aadhaarNumber?: string };
-          mother?: { name?: string; aadhaarNumber?: string };
-      }
-  };
+  const s = student as unknown as StudentDoc;
   
   return {
-    id: student._id.toString(),
-    registrationNumber: student.registrationNumber,
-    name: student.name,
-    classId: student.classId?._id.toString() || '',
-    className: student.classId?.name || '',
-    section: student.section || 'A',
-    rollNumber: student.rollNumber || '',
-    gender: (student.gender as "Male" | "Female" | "Other") || "Male",
+    id: s._id.toString(),
+    registrationNumber: s.registrationNumber,
+    name: s.name,
+    classId: s.classId?._id.toString() || '',
+    className: s.classId?.name || '',
+    section: s.section || 'A',
+    rollNumber: s.rollNumber || '',
+    gender: (s.gender as "Male" | "Female" | "Other") || "Male",
     
-    // Support both new nested and old flat structure
-    fatherName: student.parents?.father?.name || student.fatherName,
-    fatherAadhaar: student.parents?.father?.aadhaarNumber || '',
-    motherName: student.parents?.mother?.name || student.motherName,
-    motherAadhaar: student.parents?.mother?.aadhaarNumber || '',
+    fatherName: s.parents?.father?.name || s.fatherName,
+    fatherAadhaar: s.parents?.father?.aadhaarNumber || '',
+    motherName: s.parents?.mother?.name || s.motherName,
+    motherAadhaar: s.parents?.mother?.aadhaarNumber || '',
     
-    email: student.contacts?.email || [],
-    dateOfBirth: student.dateOfBirth ? student.dateOfBirth.toISOString().split('T')[0] : '',
-    dateOfAdmission: student.dateOfAdmission ? student.dateOfAdmission.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    email: s.contacts?.email || [],
+    dateOfBirth: s.dateOfBirth ? s.dateOfBirth.toISOString().split('T')[0] : '',
+    dateOfAdmission: s.dateOfAdmission ? s.dateOfAdmission.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
     
-    address: student.address,
-    mobile: student.contacts?.mobile || [],
-    photo: student.photo,
-    documents: student.documents ? student.documents.map((doc) => ({
+    address: s.address,
+    mobile: s.contacts?.mobile || [],
+    photo: s.photo,
+    documents: s.documents ? s.documents.map((doc) => ({
         type: doc.type,
         image: doc.image,
         documentNumber: doc.documentNumber,
         _id: doc._id ? doc._id.toString() : undefined
     })) : [],
     
-    pen: student.pen || '',
-    lastInstitution: student.lastInstitution || '',
-    tcNumber: student.tcNumber || '',
+    pen: s.pen || '',
+    lastInstitution: s.lastInstitution || '',
+    tcNumber: s.tcNumber || '',
   };
 }

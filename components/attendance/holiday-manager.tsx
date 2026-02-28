@@ -78,7 +78,7 @@ export function HolidayManager({ holidays: initialHolidays }: HolidayListProps) 
       } else {
         toast.error(result.error)
       }
-    } catch (error) {
+    } catch {
       toast.error("An error occurred")
     } finally {
       setLoading(false)
@@ -95,7 +95,7 @@ export function HolidayManager({ holidays: initialHolidays }: HolidayListProps) 
       } else {
         toast.error(result.error)
       }
-    } catch (error) {
+    } catch {
       toast.error("An error occurred")
     } finally {
       setDeleting(null)

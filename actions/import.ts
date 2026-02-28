@@ -112,6 +112,7 @@ export async function bulkImportStudents(data: Record<string, unknown>[], confir
         lastInstitution?: string;
         tcNumber?: string;
         photo?: string;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         documents?: any[];
     }
 

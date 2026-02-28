@@ -7,16 +7,16 @@ const TeacherSchema = new mongoose.Schema({
   joiningDate: { type: Date, required: true },
   
   // Refactored to match Student model structure
-  photo: { type: String }, // Base64
+  photo: { type: String }, // Path to local file or URL
   documents: [{
     type: { type: String }, // e.g., PAN, Aadhaar, Experience Certificate
-    image: { type: String }, // Base64
+    image: { type: String }, // Path to local file or URL
     documentNumber: { type: String }
   }],
 
   pastExperience: {
     totalExperience: { type: Number },
-    experienceLetter: { type: String },
+    experienceLetter: { type: String }, // Path to local file or URL
   },
   // experienceCertificate: { type: String }, // Moved to documents array
 

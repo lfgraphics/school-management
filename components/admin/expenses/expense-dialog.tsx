@@ -28,8 +28,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2, Plus, Edit } from "lucide-react"
+import { FileUploader } from "@/components/ui/file-uploader-new"
 import { createExpense, updateExpense } from "@/actions/expense"
-import { FileUploader } from "@/components/ui/file-uploader"
 
 // Schema needs to match server-side validation
 const formSchema = z.object({
@@ -39,9 +39,9 @@ const formSchema = z.object({
   expenseDate: z.string(),
   category: z.enum(['Salary', 'Maintenance', 'Supplies', 'Utilities', 'Others']),
   teacherId: z.string().optional(),
-  salaryMonth: z.string().optional(), // Form uses string, convert to number
-  salaryYear: z.string().optional(), // Form uses string, convert to number
-  receipt: z.string().optional(),
+  salaryMonth: z.string().optional(), 
+  salaryYear: z.string().optional(),
+  // receipt removed from Zod as it is handled via state
 }).refine((data) => {
   if (data.category !== 'Salary' && !data.title) {
     return false;
@@ -75,6 +75,9 @@ interface ExpenseDialogProps {
 export function ExpenseDialog({ mode = "create", expense, teachers }: ExpenseDialogProps) {
   const [open, setOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  
+  // Local state for file
+  const [receiptFile, setReceiptFile] = useState<File | null>(null)
 
   const defaultValues = {
     title: expense?.title || "",
@@ -85,7 +88,6 @@ export function ExpenseDialog({ mode = "create", expense, teachers }: ExpenseDia
     teacherId: expense?.teacherId?._id || "",
     salaryMonth: expense?.salaryMonth?.toString() || new Date().getMonth() + 1 + "",
     salaryYear: expense?.salaryYear?.toString() || new Date().getFullYear().toString(),
-    receipt: expense?.receipt || "",
   }
 
   const form = useForm<z.input<typeof formSchema>>({
@@ -131,18 +133,27 @@ export function ExpenseDialog({ mode = "create", expense, teachers }: ExpenseDia
   async function onSubmit(values: z.input<typeof formSchema>) {
     setIsLoading(true)
     try {
-      const payload = {
-        ...values,
-        amount: Number(values.amount),
-        salaryMonth: values.salaryMonth ? Number(values.salaryMonth) : undefined,
-        salaryYear: values.salaryYear ? Number(values.salaryYear) : undefined,
+      const formData = new FormData();
+      
+      if (values.title) formData.append('title', values.title);
+      if (values.description) formData.append('description', values.description);
+      formData.append('amount', values.amount.toString());
+      formData.append('expenseDate', values.expenseDate);
+      formData.append('category', values.category);
+      
+      if (values.teacherId) formData.append('teacherId', values.teacherId);
+      if (values.salaryMonth) formData.append('salaryMonth', values.salaryMonth);
+      if (values.salaryYear) formData.append('salaryYear', values.salaryYear);
+      
+      if (receiptFile) {
+          formData.append('receipt', receiptFile);
       }
 
       let result
       if (mode === "create") {
-        result = await createExpense(payload)
+        result = await createExpense(formData)
       } else if (expense) {
-        result = await updateExpense(expense.id, payload)
+        result = await updateExpense(expense.id, formData)
       } else {
         return
       }
@@ -151,6 +162,7 @@ export function ExpenseDialog({ mode = "create", expense, teachers }: ExpenseDia
         toast.success(mode === "create" ? "Expense created successfully" : "Expense updated successfully")
         setOpen(false)
         form.reset(defaultValues)
+        setReceiptFile(null)
       } else {
         toast.error(result.error || "Operation failed")
       }
@@ -339,24 +351,15 @@ export function ExpenseDialog({ mode = "create", expense, teachers }: ExpenseDia
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="receipt"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Receipt / Invoice</FormLabel>
-                  <FormControl>
-                    <FileUploader 
-                        value={field.value || null} 
-                        onChange={field.onChange}
-                        accept="image/*,.pdf"
-                        label="Upload Receipt"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="space-y-2">
+                <FormLabel>Receipt / Invoice</FormLabel>
+                <FileUploader 
+                    onFileSelect={setReceiptFile}
+                    accept="image/*,.pdf"
+                    label="Upload Receipt"
+                    previewUrl={expense?.receipt}
+                />
+            </div>
 
             <DialogFooter>
               <Button type="submit" disabled={isLoading}>

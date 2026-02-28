@@ -33,7 +33,7 @@ interface Transaction {
   examType?: string
   amount: number
   status: string
-  transactionDate: Date
+  transactionDate: Date | string
   collectedBy: string
   remarks?: string
 }

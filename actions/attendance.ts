@@ -7,6 +7,7 @@ import Class from "@/models/Class"
 import { revalidatePath } from "next/cache"
 import { startOfDay, endOfDay } from "date-fns"
 import { Types } from "mongoose"
+import logger from "@/lib/logger"
 
 interface StudentDoc {
   _id: Types.ObjectId;
@@ -112,7 +113,7 @@ export async function getStudentsForAttendance(classId: string, section: string,
 
     return { success: true, students: result, isHoliday, holidayReason }
   } catch (error: unknown) {
-    console.error("Error fetching students for attendance:", error)
+    logger.error(error, "Error fetching students for attendance")
     return { success: false, error: `Failed to fetch students: ${error instanceof Error ? error.message : 'Unknown error'}` }
   }
 }
@@ -174,7 +175,7 @@ export async function saveAttendance({
     revalidatePath("/attendance/dashboard")
     return { success: true }
   } catch (error: unknown) {
-    console.error("Error saving attendance:", error)
+    logger.error(error, "Error saving attendance")
     return { success: false, error: "Failed to save attendance" }
   }
 }
@@ -188,7 +189,7 @@ export async function getClassesForAttendance() {
       name: c.name
     }));
   } catch (error: unknown) {
-    console.error("Error fetching classes:", error);
+    logger.error(error, "Error fetching classes")
     return [];
   }
 }

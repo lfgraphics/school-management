@@ -8,6 +8,7 @@ import { startOfDay, endOfDay } from "date-fns"
 import { revalidatePath } from "next/cache"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import logger from "@/lib/logger"
 
 interface TransactionFilter {
   startDate?: Date
@@ -209,8 +210,8 @@ export async function deleteFeeTransaction(transactionId: string) {
 
     revalidatePath('/fees/transactions')
     return { success: true }
-  } catch (error) {
-    console.error("Error deleting transaction:", error)
+  } catch (error: unknown) {
+    logger.error(error, "Error deleting transaction")
     return { success: false, error: "Failed to delete transaction" }
   }
 }

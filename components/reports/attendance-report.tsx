@@ -27,7 +27,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Search, Download, FileSpreadsheet, FileText } from 'lucide-react';
+import { Search, FileSpreadsheet, FileText } from 'lucide-react';
 import { getAttendanceReport } from '@/actions/reports';
 import {
   LineChart,
@@ -56,8 +56,40 @@ export default function AttendanceReport({ classes }: AttendanceReportProps) {
   const [classId, setClassId] = useState('all');
   const [section, setSection] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  
-  const [reportData, setReportData] = useState<any>(null);
+
+  interface AttendanceSummary {
+    totalWorkingDays: number;
+    averageAttendance: number | string;
+    totalPresent: number;
+    totalAbsent: number;
+  }
+
+  interface DailyStat {
+    date: string;
+    percentage: string;
+    present: number;
+    total: number;
+  }
+
+  interface StudentReport {
+    id: string;
+    name: string;
+    rollNumber: string;
+    className: string;
+    section: string;
+    total: number;
+    present: number;
+    absent: number;
+    percentage: string;
+  }
+
+  interface ReportData {
+    summary: AttendanceSummary;
+    dailyStats: DailyStat[];
+    studentReport: StudentReport[];
+  }
+
+  const [reportData, setReportData] = useState<ReportData | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const fetchData = () => {
@@ -70,11 +102,9 @@ export default function AttendanceReport({ classes }: AttendanceReportProps) {
           endDate: date.to!,
           classId: classId === 'all' ? undefined : classId,
           section: section === 'all' ? undefined : section,
-          // studentId handled by search filtering on client or separate search logic
-          // For simplicity, we fetch all for class/section and filter by name on client
-          // unless it's a huge dataset, which for a school is manageable.
         });
-        setReportData(data);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setReportData(data as any);
       } catch (error) {
         console.error('Failed to fetch report:', error);
       }
@@ -91,15 +121,15 @@ export default function AttendanceReport({ classes }: AttendanceReportProps) {
     fetchData();
   };
 
-  const filteredStudents = reportData?.studentReport?.filter((student: any) => 
+  const filteredStudents = reportData?.studentReport?.filter((student) =>
     student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    student.rollNumber?.toLowerCase().includes(searchQuery.toLowerCase())
+    (student.rollNumber && student.rollNumber.toLowerCase().includes(searchQuery.toLowerCase()))
   ) || [];
 
   const handleExportExcel = () => {
     if (!reportData) return;
-    
-    const ws = XLSX.utils.json_to_sheet(filteredStudents.map((s: any) => ({
+
+    const ws = XLSX.utils.json_to_sheet(filteredStudents.map((s) => ({
       'Name': s.name,
       'Roll No': s.rollNumber,
       'Class': s.className,
@@ -109,7 +139,7 @@ export default function AttendanceReport({ classes }: AttendanceReportProps) {
       'Absent': s.absent,
       'Percentage': s.percentage + '%',
     })));
-    
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
     XLSX.writeFile(wb, `attendance_report_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
@@ -134,7 +164,7 @@ export default function AttendanceReport({ classes }: AttendanceReportProps) {
           <label className="text-sm font-medium mb-1 block">Date Range</label>
           <CalendarDateRangePicker date={date} setDate={setDate} className="w-full" />
         </div>
-        
+
         <div className="w-full md:w-[180px]">
           <label className="text-sm font-medium mb-1 block">Class</label>
           <Select value={classId} onValueChange={setClassId}>
@@ -242,7 +272,7 @@ export default function AttendanceReport({ classes }: AttendanceReportProps) {
               </ResponsiveContainer>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardHeader>
               <CardTitle>Overall Distribution</CardTitle>
@@ -312,7 +342,7 @@ export default function AttendanceReport({ classes }: AttendanceReportProps) {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredStudents.map((student: any) => (
+                filteredStudents.map((student) => (
                   <TableRow key={student.id}>
                     <TableCell>{student.rollNumber || '-'}</TableCell>
                     <TableCell className="font-medium">{student.name}</TableCell>
@@ -327,7 +357,7 @@ export default function AttendanceReport({ classes }: AttendanceReportProps) {
                       }>
                         {student.percentage}%
                       </span>
-                    </TableCell>
+                    </TableCell>.toString()
                   </TableRow>
                 ))
               )}

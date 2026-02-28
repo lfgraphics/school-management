@@ -32,7 +32,6 @@ export function ExportButton({ search, startDate, endDate, category }: ExportBut
       XLSX.utils.book_append_sheet(workbook, worksheet, "Expenses")
       
       // Auto-width columns
-      const maxWidth = data.reduce((w, r) => Math.max(w, Object.keys(r).length), 10)
       const wscols = Object.keys(data[0]).map(k => ({ wch: Math.max(k.length + 5, 15) }))
       worksheet['!cols'] = wscols
 

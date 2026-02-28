@@ -18,6 +18,7 @@
 /out/
 /.trae/
 /.vscode/
+/public/uploads/
 
 # production
 /build

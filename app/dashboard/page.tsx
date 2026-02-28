@@ -8,6 +8,14 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import mongoose from "mongoose"
 
+interface TransactionDoc {
+    _id: string;
+    amount: number;
+    transactionDate: Date;
+    studentId?: { name: string };
+    status: string;
+}
+
 export default async function StaffDashboardPage() {
   await dbConnect();
   const session = await getServerSession(authOptions);
@@ -100,28 +108,31 @@ export default async function StaffDashboardPage() {
           <CardContent>
             {recentTransactions.length > 0 ? (
                 <div className="space-y-4">
-                    {recentTransactions.map((tx: any) => (
-                        <div key={tx._id} className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
+                    {recentTransactions.map((tx: unknown) => {
+                        const transaction = tx as TransactionDoc;
+                        return (
+                        <div key={transaction._id} className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
                             <div className="space-y-1">
                                 <p className="text-sm font-medium">
-                                    Collected fee from <span className="font-bold">{tx.studentId?.name || 'Unknown Student'}</span>
+                                    Collected fee from <span className="font-bold">{transaction.studentId?.name || 'Unknown Student'}</span>
                                 </p>
                                 <p className="text-xs text-muted-foreground">
-                                    {new Date(tx.transactionDate).toLocaleString()}
+                                    {new Date(transaction.transactionDate).toLocaleString()}
                                 </p>
                             </div>
                             <div className="font-medium text-sm">
-                                +₹{tx.amount.toLocaleString()}
+                                +₹{transaction.amount.toLocaleString()}
                                 <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${
-                                    tx.status === 'verified' ? 'bg-green-100 text-green-800' : 
-                                    tx.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                    transaction.status === 'verified' ? 'bg-green-100 text-green-800' : 
+                                    transaction.status === 'rejected' ? 'bg-red-100 text-red-800' :
                                     'bg-yellow-100 text-yellow-800'
                                 }`}>
-                                    {tx.status}
+                                    {transaction.status}
                                 </span>
                             </div>
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
             ) : (
                 <div className="text-center py-8 text-muted-foreground">

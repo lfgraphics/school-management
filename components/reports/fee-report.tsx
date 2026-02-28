@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useState, useTransition, useEffect } from 'react';
 import { DateRange } from 'react-day-picker';
@@ -44,6 +44,37 @@ import {
 } from 'recharts';
 import * as XLSX from 'xlsx';
 
+interface FeeSummary {
+  totalCollected: number;
+  totalExpected: number;
+  totalPending: number;
+  collectionRate: string;
+}
+
+interface FeeTrend {
+  date: string;
+  amount: number;
+}
+
+interface StudentFeeReport {
+  id: string;
+  name: string;
+  rollNumber: string;
+  className: string;
+  section: string;
+  collectedPeriod: number;
+  expectedPeriod: number;
+  dueAmount: number;
+  period: string;
+  status: string;
+}
+
+interface FeeReportData {
+  summary: FeeSummary;
+  trend: FeeTrend[];
+  studentReport: StudentFeeReport[];
+}
+
 interface FeeReportProps {
   classes: { id: string; name: string }[];
 }
@@ -57,7 +88,7 @@ export default function FeeReport({ classes }: FeeReportProps) {
   const [section, setSection] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   
-  const [reportData, setReportData] = useState<any>(null);
+  const [reportData, setReportData] = useState<FeeReportData | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const fetchData = () => {
@@ -71,7 +102,8 @@ export default function FeeReport({ classes }: FeeReportProps) {
           classId: classId === 'all' ? undefined : classId,
           section: section === 'all' ? undefined : section,
         });
-        setReportData(data);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setReportData(data as any);
       } catch (error) {
         console.error('Failed to fetch fee report:', error);
       }
@@ -88,15 +120,15 @@ export default function FeeReport({ classes }: FeeReportProps) {
     fetchData();
   };
 
-  const filteredStudents = reportData?.studentReport?.filter((student: any) => 
+  const filteredStudents = reportData?.studentReport?.filter((student) => 
     student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    student.rollNumber?.toLowerCase().includes(searchQuery.toLowerCase())
+    (student.rollNumber && student.rollNumber.toLowerCase().includes(searchQuery.toLowerCase()))
   ) || [];
 
   const handleExportExcel = () => {
     if (!reportData) return;
     
-    const ws = XLSX.utils.json_to_sheet(filteredStudents.map((s: any) => ({
+    const ws = XLSX.utils.json_to_sheet(filteredStudents.map((s) => ({
       'Name': s.name,
       'Roll No': s.rollNumber,
       'Class': s.className,
@@ -120,8 +152,8 @@ export default function FeeReport({ classes }: FeeReportProps) {
   const COLORS = ['#00C49F', '#FF8042'];
 
   const pieData = reportData ? [
-    { name: 'Paid', value: reportData.studentReport.filter((s: any) => s.status === 'Paid').length },
-    { name: 'Due', value: reportData.studentReport.filter((s: any) => s.status === 'Due').length },
+    { name: 'Paid', value: reportData.studentReport.filter((s) => s.status === 'Paid').length },
+    { name: 'Due', value: reportData.studentReport.filter((s) => s.status === 'Due').length },
   ] : [];
 
   return (
@@ -310,7 +342,7 @@ export default function FeeReport({ classes }: FeeReportProps) {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredStudents.map((student: any) => (
+                filteredStudents.map((student) => (
                   <TableRow key={student.id}>
                     <TableCell>{student.rollNumber || '-'}</TableCell>
                     <TableCell className="font-medium">{student.name}</TableCell>

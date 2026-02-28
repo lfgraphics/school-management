@@ -11,6 +11,7 @@ import { useDebounce } from "@/hooks/use-debounce"
 import { useEffect } from "react"
 
 interface TeachersContentProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   initialTeachers: any[]
   isAdmin?: boolean
 }

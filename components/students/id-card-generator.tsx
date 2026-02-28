@@ -40,6 +40,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import Image from "next/image"
 
 const singleFormSchema = z.object({
   studentId: z.string().min(1, "Student is required"),
@@ -54,12 +57,22 @@ interface IDCardGeneratorProps {
   classes: { id: string; name: string }[]
 }
 
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+interface IDCard {
+  id: string
+  name: string
+  registrationNumber: string
+  className: string
+  section: string
+  fatherName: string
+  dob: string | Date
+  address: string
+  mobile: string
+  photo?: string
+}
 
 export function IDCardGenerator({ students, classes }: IDCardGeneratorProps) {
   const [isLoading, setIsLoading] = useState(false)
-  const [idCards, setIdCards] = useState<any[]>([])
+  const [idCards, setIdCards] = useState<IDCard[]>([])
   const [open, setOpen] = useState(false)
   const [session, setSession] = useState("2026-27")
 
@@ -88,7 +101,7 @@ export function IDCardGenerator({ students, classes }: IDCardGeneratorProps) {
         toast.success("ID Card generated successfully")
       }
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (error) {
+      } catch (error) {
       toast.error("Failed to generate ID Card")
     } finally {
       setIsLoading(false)
@@ -106,7 +119,7 @@ export function IDCardGenerator({ students, classes }: IDCardGeneratorProps) {
         toast.error(result.error || "Failed to generate ID Cards")
       }
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (error) {
+      } catch (error) {
       toast.error("Failed to generate ID Cards")
     } finally {
       setIsLoading(false)
@@ -286,10 +299,14 @@ export function IDCardGenerator({ students, classes }: IDCardGeneratorProps) {
                 <div className="flex-1 p-2 flex flex-row gap-3 overflow-hidden relative">
                   {/* Photo Column */}
                   <div className="flex flex-col items-center gap-1 shrink-0">
-                    <div className="w-[25mm] h-[30mm] overflow-hidden bg-gray-50 border-2 border-black">
+                    <div className="w-[25mm] h-[30mm] overflow-hidden bg-gray-50 border-2 border-black relative">
                       {card.photo ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={card.photo} alt={card.name} className="w-full h-full object-cover" />
+                        <Image
+                          src={card.photo}
+                          alt={card.name}
+                          fill
+                          className="object-cover"
+                        />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-[5px] text-gray-400 text-center font-medium p-1">
                           PHOTO
@@ -315,7 +332,7 @@ export function IDCardGenerator({ students, classes }: IDCardGeneratorProps) {
                       </div>
                       <div className="grid grid-cols-[40px_1fr] gap-1 items-baseline">
                         <span className="text-[9px] font-bold text-black uppercase">DOB</span>
-                        <span className="text-[9px] font-medium text-black truncate">: {card.dob ? format(new Date(card.dob), "dd/MM/yyyy") : '-'}</span>
+                        <span className="text-[9px] font-medium text-black truncate">: {card.dob ? format(new Date(card.dob), "dd MMM yyyy") : '-'}</span>
                       </div>
                       <div className="grid grid-cols-[40px_1fr] gap-1 items-baseline">
                         <span className="text-[9px] font-bold text-black uppercase">Father</span>
@@ -326,7 +343,7 @@ export function IDCardGenerator({ students, classes }: IDCardGeneratorProps) {
                         <span className="text-[9px] font-medium text-black truncate">: {card.mobile}</span>
                       </div>
                       <div className="grid grid-cols-[40px_1fr] gap-1 items-start">
-                        <span className="text-[9px] font-bold text-black uppercase mt-[1px]">Address</span>
+                        <span className="text-[9px] font-bold text-black uppercase mt-px">Address</span>
                         <span className="text-[8px] font-medium text-black leading-tight line-clamp-2">: {card.address}</span>
                       </div>
                     </div>
@@ -335,6 +352,7 @@ export function IDCardGenerator({ students, classes }: IDCardGeneratorProps) {
                   {/* Authority Sign and session */}
                   <div className="absolute bottom-1 flex flex-row justify-between w-[95%] h-[8mm] overflow-hidden" style={{ alignItems: 'flex-end' }}>
                     <div className="flex flex-col relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src="/logo.jpeg" alt="" width="20mm" height="20mm" className="absolute bottom-[4px] left-[4px]" />
                       <div className="w-full border-t border-black/80" />
                       <span className="text-[5px] font-bold text-black">Authority Signature</span>
@@ -354,30 +372,25 @@ export function IDCardGenerator({ students, classes }: IDCardGeneratorProps) {
             margin: 10mm;
             size: A4;
           }
-          body * {
-      id-cards-grid {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
+          .no-print {
+            display: none !important;
+          }
+          .id-cards-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 10mm;
             justify-items: center; 
             padding-top: 5mm;
+            width: 100%;
           }
           .id-card-container {
-            break-inside: avoid;
-            page-break-inside: avoid;
-            margin: 0;
-            print-color-adjust: exact;
-            -webkit-print-color-adjust: exact;
-            border: 0.5px solid #e5e7eb; /* Light border for cutting guide */
+             break-inside: avoid;
+             page-break-inside: avoid;
+             margin: 0;
+             print-color-adjust: exact;
+             -webkit-print-color-adjust: exact;
+             border: 0.5px solid #e5e7eb;
           }
-          .no-print {
-            display: none;
-       >
-                    <span className="text-[6px] text-gray-600 font-bold uppercase tracking-wide bottom-0 left-0">Session: {session}</span   }
         }
       `}</style>
     </div>

@@ -54,18 +54,6 @@ interface FeeCollectionFormProps {
   userId: string
 }
 
-interface FeeFormValues {
-  classId?: string
-  studentId: string
-  feeType: string
-  amount: string
-  months?: number[]
-  year: string
-  examType?: string
-  title?: string
-  remarks?: string
-}
-
 export function FeeCollectionForm({ students, classes, userId }: FeeCollectionFormProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
@@ -186,7 +174,7 @@ export function FeeCollectionForm({ students, classes, userId }: FeeCollectionFo
       } else {
         toast.error(`Failed: ${result.error}`)
       }
-    } catch (error) {
+    } catch {
       toast.error("Something went wrong")
     } finally {
       setIsLoading(false)

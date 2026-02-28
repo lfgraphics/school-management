@@ -7,6 +7,7 @@ import ClassFee from "@/models/ClassFee"
 import Expense from "@/models/Expense"
 import Attendance from "@/models/Attendance"
 import { startOfDay, endOfDay, startOfMonth, endOfMonth, eachMonthOfInterval, format } from "date-fns"
+import { Types } from "mongoose"
 
 interface DashboardFilter {
     startDate?: Date;
@@ -31,15 +32,24 @@ interface FeeConfig {
     isActive: boolean;
 }
 
-interface Transaction {
+interface MonthlyAggResult {
+    _id: {
+        month: number;
+        year: number;
+    };
+    collected: number;
+    pending: number;
+}
+
+interface PaidFeeItem {
+    type: string;
+    m?: number;
+    y: number;
+}
+
+interface PaidFeeAggResult {
     _id: { toString: () => string };
-    studentId: { toString: () => string } | string;
-    feeType: string;
-    amount: number;
-    month?: number;
-    year: number;
-    status: string;
-    transactionDate: Date;
+    paid: PaidFeeItem[];
 }
 
 interface UnpaidStudent {
@@ -59,9 +69,9 @@ interface OverviewData {
 }
 
 interface StudentDoc {
-    _id: any;
+    _id: Types.ObjectId;
     name: string;
-    classId: { _id: any; name: string };
+    classId: { _id: Types.ObjectId; name: string };
     admissionDate?: Date;
     createdAt: Date;
     photo?: string;
@@ -71,8 +81,7 @@ interface StudentDoc {
 export async function getDashboardStats(filter: DashboardFilter) {
     await dbConnect();
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const query: any = {};
+    const query: FeeQuery = {};
 
     if (filter.startDate && filter.endDate) {
         query.transactionDate = {
@@ -106,12 +115,43 @@ export async function getDashboardStats(filter: DashboardFilter) {
     const start = filter.startDate || startOfMonth(new Date(new Date().getFullYear(), 0, 1));
     const monthsToCheck = eachMonthOfInterval({ start, end });
 
+    // 1. Get Monthly Collected/Pending Stats via Aggregation
+    const monthlyStatsMap = new Map<string, { collected: number, pending: number }>();
+    const monthlyAgg = await FeeTransaction.aggregate([
+        { 
+            $match: { 
+                status: { $in: ['verified', 'pending'] },
+                transactionDate: { $gte: start, $lte: end }
+            } 
+        },
+        {
+            $group: {
+                _id: { 
+                    month: { $month: "$transactionDate" }, 
+                    year: { $year: "$transactionDate" } 
+                },
+                collected: { $sum: { $cond: [{ $eq: ["$status", "verified"] }, "$amount", 0] } },
+                pending: { $sum: { $cond: [{ $eq: ["$status", "pending"] }, "$amount", 0] } }
+            }
+        }
+    ]);
+
+    monthlyAgg.forEach((item: MonthlyAggResult) => {
+        const key = `${item._id.month}-${item._id.year}`;
+        monthlyStatsMap.set(key, { collected: item.collected, pending: item.pending });
+    });
+
+    // 2. Efficiently Fetch Students and Fees
     const studentQuery: Record<string, unknown> = { isActive: true };
     if (filter.classId && filter.classId !== "all") {
         studentQuery.classId = filter.classId;
     }
-    const allStudents = await Student.find(studentQuery).populate('classId', 'name').lean();
-    const activeStudentIds = allStudents.map(s => (s as StudentDoc)._id.toString());
+    const allStudents = await Student.find(studentQuery)
+        .select('name classId admissionDate createdAt photo')
+        .populate('classId', 'name')
+        .lean();
+        
+    const activeStudentIds = allStudents.map(s => (s as StudentDoc)._id);
 
     const classFees = await ClassFee.find({ isActive: true }).lean();
     const feeMap = new Map<string, FeeConfig[]>();
@@ -122,31 +162,63 @@ export async function getDashboardStats(filter: DashboardFilter) {
         feeMap.get(cid)?.push(f);
     });
 
+    // 3. Aggregate Paid Fees per Student (One doc per student with array of paid items)
+    // This replaces fetching ALL transactions individually
     const yearsToCheck = new Set(monthsToCheck.map(m => m.getFullYear()));
-    const allTransactions = await FeeTransaction.find({
-        status: { $in: ['verified', 'pending'] },
-        year: { $in: Array.from(yearsToCheck) },
-        studentId: { $in: activeStudentIds }
-    }).lean();
+    const paidFeesAgg = await FeeTransaction.aggregate([
+        {
+            $match: {
+                studentId: { $in: activeStudentIds },
+                status: { $in: ['verified', 'pending'] },
+                year: { $in: Array.from(yearsToCheck) }
+            }
+        },
+        {
+            $group: {
+                _id: "$studentId",
+                paid: {
+                    $push: {
+                        type: "$feeType",
+                        m: "$month",
+                        y: "$year"
+                    }
+                }
+            }
+        }
+    ]);
+
+    // Create a fast lookup map: StudentID -> Set of "Type-Month-Year"
+    const studentPaidMap = new Map<string, Set<string>>();
+    paidFeesAgg.forEach((item: unknown) => {
+        const i = item as PaidFeeAggResult;
+        const set = new Set<string>();
+        i.paid.forEach((p) => {
+            if (p.type === 'monthly') {
+                set.add(`${p.type}-${p.m}-${p.y}`);
+            } else {
+                set.add(`${p.type}-${p.y}`);
+            }
+        });
+        studentPaidMap.set(i._id.toString(), set);
+    });
 
     const unpaidList: UnpaidStudent[] = [];
     let totalUnpaid = 0;
     let totalExpected = 0;
-
-    const hasPaidFee = (studentId: string, type: string, month: number | undefined, year: number) => {
-        return allTransactions.some((tx: unknown) => {
-            const transaction = tx as Transaction;
-            const txStudentId = transaction.studentId?.toString() || transaction.studentId;
-            if (txStudentId !== studentId) return false;
-            if (transaction.feeType !== type) return false;
-            if (transaction.year !== year) return false;
-            if (type === 'monthly') return transaction.month === month;
-            return true;
-        });
+    
+    // Helper to check payment using the Map (O(1))
+    const hasPaidFeeFast = (studentId: string, type: string, month: number | undefined, year: number) => {
+        const paidSet = studentPaidMap.get(studentId);
+        if (!paidSet) return false;
+        if (type === 'monthly') return paidSet.has(`${type}-${month}-${year}`);
+        return paidSet.has(`${type}-${year}`);
     };
+
+    const monthlyUnpaidMap = new Map<string, number>(); // "Month-Year" -> Amount
 
     for (const s of allStudents) {
         const student = s as StudentDoc;
+        const studentId = student._id.toString();
         const studentFees = feeMap.get(student.classId._id.toString()) || [];
         const admissionDate = new Date(student.admissionDate || student.createdAt);
         const admMonth = admissionDate.getMonth() + 1;
@@ -162,14 +234,19 @@ export async function getDashboardStats(filter: DashboardFilter) {
             for (const monthDate of monthsToCheck) {
                 const m = monthDate.getMonth() + 1;
                 const y = monthDate.getFullYear();
+                const monthKey = `${m}-${y}`;
                 const isAfterAdmission = (y > admYear) || (y === admYear && m >= admMonth);
 
                 if (isAfterAdmission) {
                     totalExpected += monthlyAmount;
 
-                    if (!hasPaidFee(student._id.toString(), 'monthly', m, y)) {
+                    if (!hasPaidFeeFast(studentId, 'monthly', m, y)) {
                         studentUnpaidAmount += monthlyAmount;
                         studentUnpaidDetails.push(`${format(monthDate, 'MMM')} ${y}`);
+                        
+                        // Accumulate monthly unpaid for overview
+                        const current = monthlyUnpaidMap.get(monthKey) || 0;
+                        monthlyUnpaidMap.set(monthKey, current + monthlyAmount);
                     }
                 }
             }
@@ -189,13 +266,22 @@ export async function getDashboardStats(filter: DashboardFilter) {
             if (isDueInPeriod && isStudentEligible) {
                 totalExpected += examFeeConfig.amount;
 
-                if (!hasPaidFee(student._id.toString(), 'examination', undefined, examYear)) {
+                if (!hasPaidFeeFast(studentId, 'examination', undefined, examYear)) {
                     studentUnpaidAmount += examFeeConfig.amount;
                     studentUnpaidDetails.push(`Exam Fee (${format(examDate, 'MMM')})`);
+                    // Note: Exam fees don't easily map to a specific month in "Overview" chart unless we force it.
+                    // Usually Overview is Monthly Fees. Let's ignore Exam Fee in Monthly Overview Unpaid for now to match typical logic,
+                    // or add it to the exam month.
+                    const examMonthKey = `${examMonth}-${examYear}`;
+                    if (monthlyUnpaidMap.has(examMonthKey)) {
+                         const current = monthlyUnpaidMap.get(examMonthKey) || 0;
+                         monthlyUnpaidMap.set(examMonthKey, current + examFeeConfig.amount);
+                    }
                 }
             }
         }
 
+        // Admission Fee Logic (simplified)
         const isAdmissionInPeriod = monthsToCheck.some(d =>
             d.getMonth() + 1 === admMonth && d.getFullYear() === admYear
         );
@@ -206,9 +292,15 @@ export async function getDashboardStats(filter: DashboardFilter) {
             if (admissionFeeConfig) {
                 totalExpected += admissionFeeConfig.amount;
 
-                if (!hasPaidFee(student._id.toString(), 'admission', undefined, admYear)) {
+                if (!hasPaidFeeFast(studentId, 'admission', undefined, admYear)) {
                     studentUnpaidAmount += admissionFeeConfig.amount;
                     studentUnpaidDetails.push(`Admission Fee`);
+                    
+                    const admKey = `${admMonth}-${admYear}`;
+                     if (monthlyUnpaidMap.has(admKey)) {
+                         const current = monthlyUnpaidMap.get(admKey) || 0;
+                         monthlyUnpaidMap.set(admKey, current + admissionFeeConfig.amount);
+                    }
                 }
             }
         }
@@ -226,6 +318,20 @@ export async function getDashboardStats(filter: DashboardFilter) {
         }
     }
 
+    const processedOverview: OverviewData[] = monthsToCheck.map(month => {
+        const m = month.getMonth() + 1;
+        const y = month.getFullYear();
+        const key = `${m}-${y}`;
+        const stats = monthlyStatsMap.get(key) || { collected: 0, pending: 0 };
+        
+        return {
+            name: format(month, 'MMM'),
+            collected: stats.collected,
+            pending: stats.pending,
+            unpaid: monthlyUnpaidMap.get(key) || 0
+        };
+    });
+
     const recentSales = await FeeTransaction.find({
         ...query,
         status: { $in: ['verified', 'pending'] }
@@ -235,54 +341,7 @@ export async function getDashboardStats(filter: DashboardFilter) {
         .populate('studentId', 'name contacts photo')
         .lean();
 
-    const processedOverview: OverviewData[] = [];
 
-    monthsToCheck.forEach(month => {
-        const m = month.getMonth() + 1;
-        const y = month.getFullYear();
-
-        let monthlyUnpaid = 0;
-
-        for (const s of allStudents) {
-            const student = s as StudentDoc;
-            const studentFees = feeMap.get(student.classId._id.toString()) || [];
-            const monthlyFeeConfig = studentFees.find(f => f.type === 'monthly');
-
-            if (monthlyFeeConfig) {
-                const admissionDate = new Date(student.admissionDate || student.createdAt);
-                const admMonth = admissionDate.getMonth() + 1;
-                const admYear = admissionDate.getFullYear();
-                const isAfterAdmission = (y > admYear) || (y === admYear && m >= admMonth);
-
-                if (isAfterAdmission) {
-                    if (!hasPaidFee(student._id.toString(), 'monthly', m, y)) {
-                        monthlyUnpaid += monthlyFeeConfig.amount;
-                    }
-                }
-            }
-        }
-
-        const monthTransactions = allTransactions.filter((tx: unknown) => {
-            const transaction = tx as Transaction;
-            const d = new Date(transaction.transactionDate);
-            return d.getMonth() + 1 === m && d.getFullYear() === y;
-        });
-
-        const monthlyCollected = monthTransactions
-            .filter((tx: unknown) => (tx as Transaction).status === 'verified')
-            .reduce((sum: number, tx: unknown) => sum + (tx as Transaction).amount, 0);
-
-        const monthlyPending = monthTransactions
-            .filter((tx: unknown) => (tx as Transaction).status === 'pending')
-            .reduce((sum: number, tx: unknown) => sum + (tx as Transaction).amount, 0);
-
-        processedOverview.push({
-            name: format(month, 'MMM'),
-            collected: monthlyCollected,
-            pending: monthlyPending,
-            unpaid: monthlyUnpaid
-        });
-    });
 
     const classWiseData = await FeeTransaction.aggregate([
         { $match: { ...query } },
@@ -340,7 +399,7 @@ export async function getDashboardStats(filter: DashboardFilter) {
     }
 
     // Calculate Expenses
-    const expenseQuery: any = { status: 'active' };
+    const expenseQuery: Record<string, unknown> = { status: 'active' };
     if (filter.startDate && filter.endDate) {
         expenseQuery.expenseDate = {
             $gte: startOfDay(filter.startDate),
@@ -412,15 +471,21 @@ export async function getAttendanceStats() {
         total: number;
     }
 
+    interface AttendanceDoc {
+        classId: { name: string };
+        records: { status: string }[];
+    }
+
     const classWiseAttendance: Record<string, ClassStats> = {};
 
-    attendanceDocs.forEach((doc: any) => {
-        const className = doc.classId?.name || 'Unknown';
+    attendanceDocs.forEach((doc: unknown) => {
+        const d = doc as AttendanceDoc;
+        const className = d.classId?.name || 'Unknown';
         if (!classWiseAttendance[className]) {
             classWiseAttendance[className] = { present: 0, absent: 0, holiday: 0, total: 0 };
         }
 
-        doc.records.forEach((record: any) => {
+        d.records.forEach((record) => {
             if (record.status === 'Present') {
                 totalPresent++;
                 classWiseAttendance[className].present++;

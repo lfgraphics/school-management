@@ -6,10 +6,10 @@ import Attendance from '@/models/Attendance';
 import FeeTransaction from '@/models/FeeTransaction';
 import ClassFee from '@/models/ClassFee';
 import { startOfDay, endOfDay, format, eachDayOfInterval, isBefore, isAfter, startOfMonth, endOfMonth } from 'date-fns';
+import logger from "@/lib/logger";
+import { Types } from "mongoose";
 
-// ----------------------------------------------------------------------
-// Attendance Reporting
-// ----------------------------------------------------------------------
+// --- Interfaces ---
 
 interface AttendanceReportParams {
   startDate: Date;
@@ -18,6 +18,69 @@ interface AttendanceReportParams {
   section?: string;
   studentId?: string;
 }
+
+interface StudentStat {
+  id: string;
+  name: string;
+  rollNumber: string;
+  className: string;
+  section: string;
+  present: number;
+  absent: number;
+  total: number;
+  percentage: number | string;
+  history: { date: string; status: string }[];
+}
+
+interface DailyStat {
+  date: string;
+  percentage: string;
+  present: number;
+  total: number;
+}
+
+interface AttendanceRecordDoc {
+  date: Date;
+  classId: { name: string };
+  records: {
+    studentId: { _id: Types.ObjectId; name: string; rollNumber: string };
+    status: string;
+  }[];
+}
+
+interface FeeReportParams {
+  startDate: Date;
+  endDate: Date;
+  classId?: string;
+  section?: string;
+  studentId?: string;
+}
+
+interface StudentReportDoc {
+  _id: Types.ObjectId;
+  name: string;
+  rollNumber: string;
+  classId: { _id: Types.ObjectId; name: string };
+  section: string;
+  dateOfAdmission?: Date;
+}
+
+interface FeeTransactionDoc {
+  studentId: Types.ObjectId;
+  amount: number;
+  feeType: string;
+  month?: number;
+  year?: number;
+  transactionDate: Date;
+}
+
+interface ClassFeeDoc {
+    classId: Types.ObjectId;
+    type: string;
+    amount: number;
+}
+
+// --- Attendance Reporting ---
 
 export async function getAttendanceReport({
   startDate,
@@ -29,7 +92,8 @@ export async function getAttendanceReport({
   await dbConnect();
 
   try {
-    // 1. Build Query for Attendance Records
+    // Build Query for Attendance Records
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const query: any = {
       date: {
         $gte: startOfDay(startDate),
@@ -40,25 +104,18 @@ export async function getAttendanceReport({
     if (classId && classId !== 'all') query.classId = classId;
     if (section && section !== 'all') query.section = section;
 
-    // Fetch attendance records
-    // We need to populate class to get class name if needed, but mainly we need records
     const attendanceRecords = await Attendance.find(query)
       .populate('classId', 'name')
       .populate('records.studentId', 'name rollNumber')
-      .lean();
-
-    // 2. Filter by Student ID if provided (since studentId is inside records array)
-    // Actually, it's better to filter the records array in memory or use aggregation
-    // For now, in-memory filtering is fine for typical school sizes
+      .lean() as unknown as AttendanceRecordDoc[];
 
     let totalDays = 0;
     let totalPresent = 0;
     let totalAbsent = 0;
     
-    // Map to store student-wise stats
-    const studentStats: Record<string, any> = {};
+    const studentStats: Record<string, StudentStat> = {};
 
-    // Get list of all relevant students first to ensure we include students with 0 attendance
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const studentQuery: any = { isActive: true };
     if (classId && classId !== 'all') studentQuery.classId = classId;
     if (section && section !== 'all') studentQuery.section = section;
@@ -69,7 +126,7 @@ export async function getAttendanceReport({
       .select('name rollNumber classId section')
       .lean();
 
-    // Initialize student stats
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     students.forEach((student: any) => {
       studentStats[student._id.toString()] = {
         id: student._id.toString(),
@@ -81,30 +138,22 @@ export async function getAttendanceReport({
         absent: 0,
         total: 0,
         percentage: 0,
-        history: [], // For daily status
+        history: [],
       };
     });
 
-    // Process attendance records
-    // We need to handle "Holiday" status? Usually holidays are excluded from "Total Working Days"
-    // But for now, let's count Present/Absent as working days.
-    
-    // Create a set of unique dates (working days)
     const workingDays = new Set<string>();
 
-    attendanceRecords.forEach((record: any) => {
+    attendanceRecords.forEach((record) => {
       const dateStr = format(new Date(record.date), 'yyyy-MM-dd');
       let isWorkingDay = false;
 
-      // Iterate through student records in this attendance entry
-      record.records.forEach((studentRec: any) => {
-        if (!studentRec.studentId) return; // Skip if student deleted/null
+      record.records.forEach((studentRec) => {
+        if (!studentRec.studentId) return;
         const sId = studentRec.studentId._id.toString();
         
-        // Filter by specific student if requested
         if (studentId && sId !== studentId) return;
 
-        // If student exists in our initial list (handles class/section filter implicitly)
         if (studentStats[sId]) {
           const status = studentRec.status;
           
@@ -134,20 +183,16 @@ export async function getAttendanceReport({
 
     totalDays = workingDays.size;
 
-    // Calculate percentages and finalize list
-    const studentReport = Object.values(studentStats).map((stat: any) => {
+    const studentReport = Object.values(studentStats).map((stat) => {
       stat.percentage = stat.total > 0 ? ((stat.present / stat.total) * 100).toFixed(1) : 0;
       return stat;
     });
 
-    // Calculate overall trend (daily attendance percentage)
-    // We need to aggregate across all students for each day
-    const dailyStats: any[] = [];
+    const dailyStats: DailyStat[] = [];
     const daysInterval = eachDayOfInterval({ start: startDate, end: endDate });
 
-    // Optimize: Group attendance by date
-    const attendanceByDate: Record<string, any> = {};
-    attendanceRecords.forEach((record: any) => {
+    const attendanceByDate: Record<string, AttendanceRecordDoc[]> = {};
+    attendanceRecords.forEach((record) => {
       const d = format(new Date(record.date), 'yyyy-MM-dd');
       if (!attendanceByDate[d]) attendanceByDate[d] = [];
       attendanceByDate[d].push(record);
@@ -161,11 +206,9 @@ export async function getAttendanceReport({
         let dayPresent = 0;
         let dayTotal = 0;
 
-        recordsForDay.forEach((record: any) => {
-          record.records.forEach((s: any) => {
-             // Check filters
+        recordsForDay.forEach((record) => {
+          record.records.forEach((s) => {
              if (studentId && s.studentId?._id.toString() !== studentId) return;
-             // Check if student belongs to filtered class/section (if we had filtered students map)
              if (s.studentId && studentStats[s.studentId._id.toString()]) {
                 if (s.status === 'Present') dayPresent++;
                 if (s.status !== 'Holiday') dayTotal++;
@@ -196,22 +239,12 @@ export async function getAttendanceReport({
     };
 
   } catch (error) {
-    console.error('Error fetching attendance report:', error);
+    logger.error(error, 'Error fetching attendance report');
     throw new Error('Failed to fetch attendance report');
   }
 }
 
-// ----------------------------------------------------------------------
-// Fee Reporting
-// ----------------------------------------------------------------------
-
-interface FeeReportParams {
-  startDate: Date;
-  endDate: Date;
-  classId?: string;
-  section?: string;
-  studentId?: string;
-}
+// --- Fee Reporting ---
 
 export async function getFeeReport({
   startDate,
@@ -223,8 +256,8 @@ export async function getFeeReport({
   await dbConnect();
 
   try {
-    // 1. Fetch Students
-    const studentQuery: any = { isActive: true };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const studentQuery: any = {};
     if (classId && classId !== 'all') studentQuery.classId = classId;
     if (section && section !== 'all') studentQuery.section = section;
     if (studentId) studentQuery._id = studentId;
@@ -234,75 +267,65 @@ export async function getFeeReport({
       .select('name rollNumber classId section dateOfAdmission')
       .lean();
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const studentIds = students.map((s: any) => s._id);
 
-    // 2. Fetch Transactions (Collected)
-    // Filter by transaction date for "Collected in Period"
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const transactionQuery: any = {
       studentId: { $in: studentIds },
-      status: 'verified', // Only count verified payments
+      status: 'verified',
       transactionDate: {
         $gte: startOfDay(startDate),
         $lte: endOfDay(endDate),
       },
     };
 
-    const transactions = await FeeTransaction.find(transactionQuery).lean();
+    const transactions = await FeeTransaction.find(transactionQuery).lean() as unknown as FeeTransactionDoc[];
 
-    // 3. Fetch ALL Transactions (for Paid History Check)
     const allTransactions = await FeeTransaction.find({
       studentId: { $in: studentIds },
       status: 'verified',
-    }).lean();
+    }).lean() as unknown as FeeTransactionDoc[];
 
-    // 4. Fetch Fee Structure
-    const classFees = await ClassFee.find({ isActive: true }).lean();
+    const classFees = await ClassFee.find({ isActive: true }).lean() as unknown as ClassFeeDoc[];
 
-    // Helper to find fee for a class
     const getFeeForClass = (cId: string | undefined, type: string) => {
       if (!cId) return 0;
-      const fee = classFees.find((f: any) => f.classId.toString() === cId.toString() && f.type === type);
+      const fee = classFees.find((f) => f.classId.toString() === cId.toString() && f.type === type);
       return fee ? fee.amount : 0;
     };
 
-    // Calculate Stats
     let totalCollectedPeriod = 0;
     let totalExpectedPeriod = 0;
     let totalDuePeriod = 0;
 
-    const studentReport = students.map((student: any) => {
+    const studentReport = students.map((s: unknown) => {
+      const student = s as StudentReportDoc;
       const sId = student._id.toString();
       const cId = student.classId?._id.toString();
 
-      // Transactions in selected period (Collected)
-      const periodTxns = transactions.filter((t: any) => t.studentId.toString() === sId);
-      const collectedPeriod = periodTxns.reduce((sum: number, t: any) => sum + t.amount, 0);
+      const periodTxns = transactions.filter((t) => t.studentId.toString() === sId);
+      const collectedPeriod = periodTxns.reduce((sum, t) => sum + t.amount, 0);
 
-      // All transactions for this student (for checking payment status)
-      const studentAllTxns = allTransactions.filter((t: any) => t.studentId.toString() === sId);
+      const studentAllTxns = allTransactions.filter((t) => t.studentId.toString() === sId);
 
-      // Calculate Expected FOR THE SELECTED PERIOD
       let expectedPeriod = 0;
       const monthlyFee = getFeeForClass(cId, 'monthly');
       const admissionFee = getFeeForClass(cId, 'admissionFees');
 
       // 1. Monthly Fees in Period
-      // Iterate through months in the selected period [startDate, endDate]
       let currentIterDate = startOfMonth(startDate);
       const endIterDate = endOfMonth(endDate);
       
       const dueMonthsList: string[] = [];
       const paidMonthsSet = new Set<string>();
       
-      // Build set of paid months from all transactions
-      studentAllTxns.forEach((t: any) => {
-        if (t.feeType === 'monthly' && t.month && t.year) {
-          paidMonthsSet.add(`${t.year}-${t.month}`);
+      studentAllTxns.forEach((txn) => {
+        if (txn.feeType === 'monthly' && txn.month && txn.year) {
+          paidMonthsSet.add(`${txn.year}-${txn.month}`);
         }
       });
 
-      // Student Admission Date logic
-      // If admission is after currentIterDate, we start checking from admission month
       let admissionDate = new Date();
       if (student.dateOfAdmission) {
         const d = new Date(student.dateOfAdmission);
@@ -311,55 +334,38 @@ export async function getFeeReport({
         }
       }
       
-      // If report start date is before admission, we shouldn't expect fees before admission
-      // So effectively, start checking from MAX(startDate, admissionDate)
-      // Actually admission month counts.
-      
       const effectiveStart = isAfter(admissionDate, currentIterDate) ? startOfMonth(admissionDate) : currentIterDate;
 
-      // Reset iterator if needed
       if (isAfter(effectiveStart, currentIterDate)) {
         currentIterDate = effectiveStart;
       }
 
       while (currentIterDate <= endIterDate) {
         const y = currentIterDate.getFullYear();
-        const m = currentIterDate.getMonth() + 1; // 1-12
+        const m = currentIterDate.getMonth() + 1;
         const key = `${y}-${m}`;
         
-        // Add to expected
         expectedPeriod += monthlyFee;
         
-        // Check if paid
         if (!paidMonthsSet.has(key)) {
             const monthName = currentIterDate.toLocaleString('default', { month: 'short' });
             dueMonthsList.push(`${monthName} ${y}`);
         }
         
-        // Next month
         currentIterDate.setMonth(currentIterDate.getMonth() + 1);
       }
 
       // 2. Admission Fee in Period
-      // Check if admission date falls within the selected period
       if (isAfter(admissionDate, startOfDay(startDate)) && isBefore(admissionDate, endOfDay(endDate))) {
          expectedPeriod += admissionFee;
-         // Check if admission fee is paid
-         const paidAdmission = studentAllTxns.some((t: any) => t.feeType === 'admission' || t.feeType === 'admissionFees');
+         const paidAdmission = studentAllTxns.some((txn) => {
+             return txn.feeType === 'admission' || txn.feeType === 'admissionFees';
+         });
          if (!paidAdmission) {
              dueMonthsList.push("Admission Fee");
          }
       }
 
-      // Calculate Due Amount for this period
-      // Logic: Expected in Period - Paid FOR Period
-      // Since we already built `dueMonthsList` which contains unpaid items, we can calculate due amount from that.
-      // But we need to be careful with partial payments if any. 
-      // Assuming full payments for now as per schema logic (status verified).
-      
-      // Actually simpler: 
-      // Due = (Count of Unpaid Months * Monthly Fee) + (Unpaid Admission Fee ? Admission Fee : 0)
-      
       let dueAmount = 0;
       dueMonthsList.forEach(item => {
           if (item === "Admission Fee") {
@@ -373,7 +379,6 @@ export async function getFeeReport({
       totalExpectedPeriod += expectedPeriod;
       totalDuePeriod += dueAmount;
 
-      // Period string
       let periodStr = "-";
       if (dueMonthsList.length > 0) {
         if (dueMonthsList.length <= 3) {
@@ -396,27 +401,26 @@ export async function getFeeReport({
         className: student.classId?.name || 'N/A',
         section: student.section,
         collectedPeriod,
-        expectedPeriod, // Changed from expectedTotal
-        dueAmount,      // Changed from pending
+        expectedPeriod,
+        dueAmount,
         status: dueAmount <= 0 ? 'Paid' : 'Due',
         period: periodStr,
-        lastPaymentDate: studentAllTxns.length > 0 ? studentAllTxns.sort((a: any, b: any) => new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime())[0].transactionDate : null,
+        lastPaymentDate: studentAllTxns.length > 0 ? studentAllTxns.sort((a, b) => new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime())[0].transactionDate : null,
       };
     });
 
     // Chart Data
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const collectionTrend: any[] = [];
     const days = eachDayOfInterval({ start: startDate, end: endDate });
     const txnsByDate: Record<string, number> = {};
-    transactions.forEach((t: any) => {
-      const d = format(new Date(t.transactionDate), 'yyyy-MM-dd');
-      txnsByDate[d] = (txnsByDate[d] || 0) + t.amount;
+    transactions.forEach((txn) => {
+      const d = format(new Date(txn.transactionDate), 'yyyy-MM-dd');
+      txnsByDate[d] = (txnsByDate[d] || 0) + txn.amount;
     });
     days.forEach((day) => {
       const d = format(day, 'yyyy-MM-dd');
-      if (txnsByDate[d]) {
-        collectionTrend.push({ date: d, amount: txnsByDate[d] });
-      }
+      collectionTrend.push({ date: d, amount: txnsByDate[d] || 0 });
     });
 
     return {
@@ -431,7 +435,7 @@ export async function getFeeReport({
     };
 
   } catch (error) {
-    console.error('Error fetching fee report:', error);
+    logger.error(error, 'Error fetching fee report');
     throw new Error('Failed to fetch fee report');
   }
 }

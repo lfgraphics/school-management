@@ -37,11 +37,11 @@ const StudentSchema = new mongoose.Schema({
     mobile: [String]
   },
   
-  photo: { type: String }, // base64 encoded
+  photo: { type: String }, // Path to local file or URL
   
   documents: [{
     type: { type: String },
-    image: { type: String }, // base64 encoded
+    image: { type: String }, // Path to local file or URL
     documentNumber: { type: String }
   }],
   

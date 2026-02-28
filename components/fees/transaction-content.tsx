@@ -7,10 +7,42 @@ import { TransactionFilters } from "@/components/fees/transaction-filters"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle, Clock, XCircle } from 'lucide-react'
 
+interface Transaction {
+  id: string;
+  receiptNumber: string;
+  studentName: string;
+  studentRegNo: string;
+  studentPhoto?: string;
+  feeType: string;
+  month?: number;
+  year: number;
+  examType?: string;
+  amount: number;
+  status: string;
+  transactionDate: Date | string;
+  collectedBy: string;
+  remarks?: string;
+}
+
+interface Pagination {
+  currentPage: number;
+  totalPages: number;
+  totalRecords: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
+interface Stats {
+  verified: { count: number; amount: number };
+  pending: { count: number; amount: number };
+  rejected: { count: number; amount: number };
+}
+
 interface TransactionContentProps {
-  initialTransactions: any[]
-  initialPagination: any
-  initialStats: any
+  initialTransactions: Transaction[]
+  initialPagination: Pagination
+  initialStats: Stats
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   classes: any[]
   isAdmin: boolean
 }
@@ -22,9 +54,9 @@ export function TransactionContent({
   classes,
   isAdmin
 }: TransactionContentProps) {
-  const [transactions, setTransactions] = useState(initialTransactions)
-  const [pagination, setPagination] = useState(initialPagination)
-  const [stats, setStats] = useState(initialStats)
+  const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions)
+  const [pagination, setPagination] = useState<Pagination>(initialPagination)
+  const [stats, setStats] = useState<Stats>(initialStats)
   const [isPending, startTransition] = useTransition()
 
   // Keep track of current filters to support pagination
@@ -39,6 +71,7 @@ export function TransactionContent({
     year?: number
   }>({})
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fetchData = (filters: any, page: number) => {
     startTransition(async () => {
       const filterObj = {
@@ -57,12 +90,20 @@ export function TransactionContent({
         getTransactionStats(filterObj)
       ])
 
-      setTransactions(listData.transactions)
+      // Cast the result to match the interface, handling date string/Date differences
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const txs = listData.transactions.map((t: any) => ({
+        ...t,
+        transactionDate: new Date(t.transactionDate)
+      })) as Transaction[];
+
+      setTransactions(txs)
       setPagination(listData.pagination)
       setStats(statsData)
     })
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleFilter = (filters: any) => {
     setCurrentFilters(filters)
     fetchData(filters, 1)

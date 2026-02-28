@@ -107,6 +107,7 @@ export function StudentImport() {
         
         setData(jsonData)
         validateData(jsonData)
+        setConfirmationRequired(false)
         
       } catch (error) {
         toast.error("Failed to parse file")
@@ -144,7 +145,7 @@ export function StudentImport() {
         } else {
              toast.error(result.error || "Review failed");
         }
-      } catch (error) {
+      } catch {
          toast.error("Failed to review data");
       } finally {
          setIsUploading(false);
@@ -183,7 +184,7 @@ export function StudentImport() {
       } else {
         toast.error(result.error || "Import failed")
       }
-    } catch (error) {
+    } catch {
       toast.error("Import failed")
     } finally {
       setIsUploading(false)

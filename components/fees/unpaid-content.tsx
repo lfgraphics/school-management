@@ -8,8 +8,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle } from 'lucide-react'
 import { format } from 'date-fns'
 
+interface UnpaidStudent {
+    id: string;
+    name: string;
+    registrationNumber: string;
+    className: string;
+    amount: number;
+    details: string[];
+    photo?: string;
+    contactNumber: string;
+}
+
 interface UnpaidContentProps {
-  initialStudents: any[]
+  initialStudents: UnpaidStudent[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   classes: any[]
   initialStartDate: Date
   initialEndDate: Date
@@ -21,7 +33,7 @@ export function UnpaidContent({
   initialStartDate,
   initialEndDate
 }: UnpaidContentProps) {
-  const [students, setStudents] = useState(initialStudents)
+  const [students, setStudents] = useState<UnpaidStudent[]>(initialStudents)
   const [displayStart, setDisplayStart] = useState(initialStartDate)
   const [displayEnd, setDisplayEnd] = useState(initialEndDate)
   const [isPending, startTransition] = useTransition()

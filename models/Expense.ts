@@ -15,7 +15,7 @@ const ExpenseSchema = new mongoose.Schema({
   teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher' },
   salaryMonth: { type: Number, min: 1, max: 12 },
   salaryYear: { type: Number },
-  receipt: { type: String }, // Base64 or URL
+  receipt: { type: String }, // Path to local file or URL
   status: { 
     type: String, 
     enum: ['active', 'deleted'], 

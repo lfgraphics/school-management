@@ -56,7 +56,7 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: "jwt",
-    maxAge: 365 * 24 * 60 * 60 * 10, // 10 years
+    maxAge: 7 * 24 * 60 * 60, // 7 days
   },
   callbacks: {
     async jwt({ token, user }) {
@@ -89,6 +89,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (token.error === "AccountInactive") {
          // Return null or invalid session to force signout
+         // eslint-disable-next-line @typescript-eslint/no-explicit-any
          return null as any; 
       }
       

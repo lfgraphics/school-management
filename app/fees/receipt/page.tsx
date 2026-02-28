@@ -1,7 +1,7 @@
 'use client'
 
 import { useSearchParams } from 'next/navigation'
-import { useEffect, useState, Suspense } from 'react'
+import { Suspense } from 'react'
 import { ThermalReceipt } from '@/components/fees/thermal-receipt'
 import { Button } from '@/components/ui/button'
 import { Printer, ArrowLeft } from 'lucide-react'
@@ -9,24 +9,21 @@ import Link from 'next/link'
 
 function ReceiptContent() {
   const searchParams = useSearchParams()
-  const [receiptData, setReceiptData] = useState<any>(null)
-
-  useEffect(() => {
-    const data = {
-      receiptNumber: searchParams.get('receiptNumber') || '',
-      studentName: searchParams.get('studentName') || '',
-      studentRegNo: searchParams.get('studentRegNo') || '',
-      className: searchParams.get('className') || '',
-      feeType: searchParams.get('feeType') as any || 'monthly',
-      months: searchParams.get('months')?.split(',').map(Number) || [],
-      year: Number(searchParams.get('year')) || new Date().getFullYear(),
-      examType: searchParams.get('examType') || '',
-      title: searchParams.get('title') || '',
-      amount: Number(searchParams.get('amount')) || 0,
-      date: new Date()
-    }
-    setReceiptData(data)
-  }, [searchParams])
+  
+  const receiptData = {
+    receiptNumber: searchParams.get('receiptNumber') || '',
+    studentName: searchParams.get('studentName') || '',
+    studentRegNo: searchParams.get('studentRegNo') || '',
+    className: searchParams.get('className') || '',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    feeType: searchParams.get('feeType') as any || 'monthly',
+    months: searchParams.get('months')?.split(',').map(Number) || [],
+    year: Number(searchParams.get('year')) || new Date().getFullYear(),
+    examType: searchParams.get('examType') || '',
+    title: searchParams.get('title') || '',
+    amount: Number(searchParams.get('amount')) || 0,
+    date: new Date()
+  }
 
   const handlePrint = () => {
     window.print()

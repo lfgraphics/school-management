@@ -54,7 +54,7 @@ export function AddClassDialog() {
       } else {
         toast.error(`Failed to create class: ${result.error}`)
       }
-    } catch (error) {
+    } catch {
       toast.error("Something went wrong")
     } finally {
       setIsLoading(false)

@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/db';
 import Counter from '@/models/Counter';
-import { getServerSession } from 'next-auth'; // Assuming next-auth is used
-// import { authOptions } from '@/app/api/auth/[...nextauth]/route'; // Need to find where authOptions is exported
 
 export async function GET() {
   try {
@@ -14,7 +12,7 @@ export async function GET() {
       currentSeq: counter ? counter.seq : 0,
       nextRegistrationNumber: counter ? String(counter.seq + 1).padStart(4, '0') : '0215'
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to fetch counter' }, { status: 500 });
   }
 }
@@ -40,7 +38,7 @@ export async function POST(req: Request) {
     );
 
     return NextResponse.json({ success: true, counter });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to update counter' }, { status: 500 });
   }
 }

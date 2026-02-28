@@ -61,6 +61,7 @@ export function UpdateFeeDialog({ classId, className }: UpdateFeeDialogProps) {
         ...values
       }
       
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = await addClassFee(payload as any)
       if (result.success) {
         toast.success("Fee updated successfully")
@@ -69,7 +70,7 @@ export function UpdateFeeDialog({ classId, className }: UpdateFeeDialogProps) {
       } else {
         toast.error(`Failed to update fee: ${result.error}`)
       }
-    } catch (error) {
+    } catch {
       toast.error("Something went wrong")
     } finally {
       setIsLoading(false)

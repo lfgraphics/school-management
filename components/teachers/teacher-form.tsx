@@ -15,13 +15,13 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, Save, Plus, Trash } from "lucide-react"
 import { createTeacher, updateTeacher } from "@/actions/teacher"
 import { useRouter, usePathname } from "next/navigation"
-import { FileUploader } from "@/components/ui/file-uploader"
+import { FileUploader } from "@/components/ui/file-uploader-new"
 import { Teacher } from "@/types"
+import logger from "@/lib/logger"
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -32,8 +32,9 @@ const formSchema = z.object({
   
   // Optional
   pastExperience: z.object({
-    totalExperience: z.coerce.number().default(0),
-    experienceLetter: z.string().optional().nullable()
+    schoolName: z.string().optional(),
+    totalExperience: z.string().optional(),
+    experienceLetter: z.string().optional(),
   }).optional(),
   governmentTeacherId: z.string().optional(),
   
@@ -49,8 +50,8 @@ const formSchema = z.object({
 
   documents: z.array(z.object({
     type: z.string().min(1, "Document Type is required"),
-    image: z.string().min(1, "Document Image is required"),
     documentNumber: z.string().optional(),
+    image: z.string().optional(),
   })).optional(),
 })
 
@@ -63,7 +64,11 @@ export function TeacherForm({ teacher, isEdit = false }: TeacherFormProps) {
   const router = useRouter()
   const pathname = usePathname()
   const [isLoading, setIsLoading] = useState(false)
-  const [photo, setPhoto] = useState<string | null>(teacher?.photo || null)
+  
+  // Local state for files
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [experienceLetterFile, setExperienceLetterFile] = useState<File | null>(null)
+  const [documentFiles, setDocumentFiles] = useState<{ index: number, file: File | null }[]>([])
 
   const form = useForm<z.infer<typeof formSchema>>({
     // @ts-expect-error Zod types mismatch
@@ -75,8 +80,7 @@ export function TeacherForm({ teacher, isEdit = false }: TeacherFormProps) {
       joiningDate: teacher?.joiningDate ? new Date(teacher.joiningDate).toISOString().split('T')[0] : "",
       aadhaar: teacher?.aadhaar || "",
       pastExperience: {
-        totalExperience: teacher?.pastExperience?.totalExperience || 0,
-        experienceLetter: teacher?.pastExperience?.experienceLetter || "",
+        totalExperience: teacher?.pastExperience?.totalExperience?.toString() || "",
       },
       governmentTeacherId: teacher?.governmentTeacherId || "",
       parents: {
@@ -95,24 +99,77 @@ export function TeacherForm({ teacher, isEdit = false }: TeacherFormProps) {
     control: form.control,
     name: "documents",
   });
+  
+  const handleDocumentFileChange = (index: number, file: File | null) => {
+      setDocumentFiles(prev => {
+          const filtered = prev.filter(item => item.index !== index);
+          if (file) {
+              return [...filtered, { index, file }];
+          }
+          return filtered;
+      });
+  };
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true)
     try {
-      const payload = {
-        ...values,
-        photo: photo || undefined,
-        pastExperience: values.pastExperience ? {
-          totalExperience: values.pastExperience.totalExperience,
-          experienceLetter: values.pastExperience.experienceLetter || undefined
-        } : undefined,
+      const formData = new FormData();
+      
+      // Basic Fields
+      formData.append('name', values.name);
+      if (values.email) formData.append('email', values.email);
+      formData.append('phone', values.phone);
+      formData.append('joiningDate', values.joiningDate);
+      formData.append('aadhaar', values.aadhaar);
+      if (values.governmentTeacherId) formData.append('governmentTeacherId', values.governmentTeacherId);
+      
+      // Parents
+      if (values.parents.fatherName) formData.append('fatherName', values.parents.fatherName);
+      if (values.parents.motherName) formData.append('motherName', values.parents.motherName);
+      
+      // Salary
+      formData.append('salaryAmount', values.salary.amount.toString());
+      formData.append('salaryEffectiveDate', values.salary.effectiveDate);
+      
+      // Experience
+      if (values.pastExperience?.totalExperience) {
+          formData.append('totalExperience', values.pastExperience.totalExperience.toString());
+      }
+      
+      // Files
+      if (photoFile) {
+          formData.append('photo', photoFile);
+      }
+      if (experienceLetterFile) {
+          formData.append('experienceLetter', experienceLetterFile);
+      }
+      
+      // Documents
+      const docMeta = values.documents?.map((doc) => {
+          return {
+              type: doc.type,
+              documentNumber: doc.documentNumber
+          };
+      });
+      
+      if (docMeta && docMeta.length > 0) {
+          formData.append('document_meta', JSON.stringify(docMeta));
+          
+          values.documents?.forEach((_, index) => {
+              const fileEntry = documentFiles.find(f => f.index === index);
+              if (fileEntry && fileEntry.file) {
+                  formData.append('document_files', fileEntry.file);
+              } else {
+                  formData.append('document_files', new File([], "empty"));
+              }
+          });
       }
       
       let result;
       if (isEdit && teacher) {
-        result = await updateTeacher(teacher._id, payload)
+        result = await updateTeacher(teacher._id, formData)
       } else {
-        result = await createTeacher(payload)
+        result = await createTeacher(formData)
       }
       
       if (result.success) {
@@ -124,6 +181,7 @@ export function TeacherForm({ teacher, isEdit = false }: TeacherFormProps) {
         toast.error(`Failed to ${isEdit ? 'update' : 'create'} teacher: ${result.error}`)
       }
     } catch (error) {
+      logger.error(error)
       toast.error("Something went wrong")
     } finally {
       setIsLoading(false)
@@ -224,7 +282,7 @@ export function TeacherForm({ teacher, isEdit = false }: TeacherFormProps) {
                   name="parents.fatherName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Father's Name</FormLabel>
+                      <FormLabel>Father&apos;s Name</FormLabel>
                       <FormControl>
                         <Input placeholder="Father Name" {...field} />
                       </FormControl>
@@ -237,7 +295,7 @@ export function TeacherForm({ teacher, isEdit = false }: TeacherFormProps) {
                   name="parents.motherName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Mother's Name</FormLabel>
+                      <FormLabel>Mother&apos;s Name</FormLabel>
                       <FormControl>
                         <Input placeholder="Mother Name" {...field} />
                       </FormControl>
@@ -314,17 +372,15 @@ export function TeacherForm({ teacher, isEdit = false }: TeacherFormProps) {
                 <FormField
                   control={form.control}
                   name="pastExperience.experienceLetter"
-                  render={({ field }) => (
+                  render={() => (
                     <FormItem>
                       <FormLabel>Experience Letter (Image)</FormLabel>
                       <FormControl>
                         <FileUploader 
-                            value={field.value || null} 
-                            onChange={field.onChange} 
+                            onFileSelect={setExperienceLetterFile}
                             label="Upload Letter"
-                            previewHeight={150}
-                            previewWidth={200}
                             className="mt-0"
+                            previewUrl={teacher?.pastExperience?.experienceLetter}
                         />
                       </FormControl>
                       <FormMessage />
@@ -342,16 +398,16 @@ export function TeacherForm({ teacher, isEdit = false }: TeacherFormProps) {
                 <div className="space-y-2">
                   <FormLabel>Teacher Photo</FormLabel>
                   <FileUploader 
-                    value={photo} 
-                    onChange={setPhoto} 
-                    label="Upload Photo" 
+                    onFileSelect={setPhotoFile} 
+                    label="Upload Photo"
+                    previewUrl={teacher?.photo}
                   />
                 </div>
 
                 <div className="space-y-2 col-span-1 md:col-span-2">
                     <div className="flex items-center justify-between">
                         <FormLabel>Documents</FormLabel>
-                        <Button type="button" variant="outline" size="sm" onClick={() => append({ type: "", image: "", documentNumber: "" })}>
+                        <Button type="button" variant="outline" size="sm" onClick={() => append({ type: "", documentNumber: "" })}>
                             <Plus className="mr-2 h-4 w-4" /> Add Document
                         </Button>
                     </div>
@@ -364,7 +420,10 @@ export function TeacherForm({ teacher, isEdit = false }: TeacherFormProps) {
                                     variant="destructive"
                                     size="icon"
                                     className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
-                                    onClick={() => remove(index)}
+                                    onClick={() => {
+                                        remove(index);
+                                        setDocumentFiles(prev => prev.filter(f => f.index !== index));
+                                    }}
                                 >
                                     <Trash className="h-3 w-3" />
                                 </Button>
@@ -395,26 +454,15 @@ export function TeacherForm({ teacher, isEdit = false }: TeacherFormProps) {
                                             </FormItem>
                                         )}
                                     />
-                                    <FormField
-                                        control={form.control}
-                                        name={`documents.${index}.image`}
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs">Document Image</FormLabel>
-                                                <FormControl>
-                                                    <FileUploader 
-                                                        value={field.value || null} 
-                                                        onChange={field.onChange} 
-                                                        label=""
-                                                        previewHeight={150}
-                                                        previewWidth={200}
-                                                        className="mt-0"
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
+                                        <div className="space-y-2">
+                                            <FormLabel className="text-xs">Document Image</FormLabel>
+                                            <FileUploader 
+                                                onFileSelect={(file) => handleDocumentFileChange(index, file)}
+                                                label=""
+                                                className="mt-0"
+                                                previewUrl={field.image}
+                                            />
+                                        </div>
                                 </div>
                             </Card>
                         ))}

@@ -20,7 +20,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, Plus, Trash } from "lucide-react"
 import { registerStudent, getNextRegistrationNumber } from "@/actions/student"
 import { useRouter } from "next/navigation"
-import { FileUploader } from "@/components/ui/file-uploader"
+import { FileUploader } from "@/components/ui/file-uploader-new"
+import logger from "@/lib/logger"
 
 const formSchema = z.object({
   registrationNumber: z.string().optional(),
@@ -52,10 +53,12 @@ const formSchema = z.object({
   lastInstitution: z.string().optional(),
   tcNumber: z.string().optional(),
 
+  // We don't validate File objects with Zod here as we handle them separately
+  // But we can keep track of metadata
   documents: z.array(z.object({
     type: z.string().min(1, "Document Type is required"),
-    image: z.string().min(1, "Document Image is required"),
     documentNumber: z.string().optional(),
+    // image field removed from Zod schema as it's handled via state
   })).optional(),
 })
 
@@ -66,7 +69,8 @@ interface AdmissionFormProps {
 export function AdmissionForm({ classes }: AdmissionFormProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
-  const [photo, setPhoto] = useState<string | null>(null)
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [documentFiles, setDocumentFiles] = useState<{ index: number, file: File | null }[]>([])
   const [nextRegNo, setNextRegNo] = useState("")
 
   useEffect(() => {
@@ -114,6 +118,16 @@ export function AdmissionForm({ classes }: AdmissionFormProps) {
     name: "documents"
   });
   
+  const handleDocumentFileChange = (index: number, file: File | null) => {
+      setDocumentFiles(prev => {
+          const filtered = prev.filter(item => item.index !== index);
+          if (file) {
+              return [...filtered, { index, file }];
+          }
+          return filtered;
+      });
+  };
+
   useEffect(() => {
     if (nextRegNo && !form.getValues("registrationNumber")) {
         form.setValue("registrationNumber", nextRegNo);
@@ -123,47 +137,75 @@ export function AdmissionForm({ classes }: AdmissionFormProps) {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true)
     try {
-      const payload = {
-        ...values,
-        mobile: values.mobile.map(m => m.value),
-        email: values.email?.map(e => e.value),
-        photo,
-        // Documents are already in values.documents
+      // Create FormData
+      const formData = new FormData();
+      
+      // Append basic fields
+      formData.append('name', values.name);
+      formData.append('classId', values.classId);
+      formData.append('section', values.section);
+      if (values.registrationNumber) formData.append('registrationNumber', values.registrationNumber);
+      if (values.rollNumber) formData.append('rollNumber', values.rollNumber);
+      formData.append('dateOfBirth', values.dateOfBirth);
+      if (values.dateOfAdmission) formData.append('dateOfAdmission', values.dateOfAdmission);
+      if (values.gender) formData.append('gender', values.gender);
+      formData.append('address', values.address);
+      
+      // Parents
+      if (values.parents.father.name) formData.append('fatherName', values.parents.father.name);
+      if (values.parents.father.aadhaarNumber) formData.append('fatherAadhaar', values.parents.father.aadhaarNumber);
+      if (values.parents.mother.name) formData.append('motherName', values.parents.mother.name);
+      if (values.parents.mother.aadhaarNumber) formData.append('motherAadhaar', values.parents.mother.aadhaarNumber);
+      
+      // Optional fields
+      if (values.pen) formData.append('pen', values.pen);
+      if (values.lastInstitution) formData.append('lastInstitution', values.lastInstitution);
+      if (values.tcNumber) formData.append('tcNumber', values.tcNumber);
+
+      // Arrays
+      values.mobile.forEach(m => formData.append('mobile', m.value));
+      values.email?.forEach(e => formData.append('email', e.value));
+
+      // Files
+      if (photoFile) {
+          formData.append('photo', photoFile);
+      }
+
+      // Documents
+      const docMeta = values.documents?.map((doc) => {
+          return {
+              type: doc.type,
+              documentNumber: doc.documentNumber
+          };
+      });
+      
+      if (docMeta && docMeta.length > 0) {
+          formData.append('document_meta', JSON.stringify(docMeta));
+          
+          values.documents?.forEach((_, index) => {
+              const fileEntry = documentFiles.find(f => f.index === index);
+              if (fileEntry && fileEntry.file) {
+                  formData.append('document_files', fileEntry.file);
+              } else {
+                  formData.append('document_files', new File([], "empty"));
+              }
+          });
       }
       
-      const result = await registerStudent(payload as any)
+      const result = await registerStudent(formData)
       
       if (result.success) {
         toast.success(`Student admitted successfully! Reg No: ${result.regNo}`)
-        form.reset({
-            registrationNumber: "",
-            name: "",
-            classId: "",
-            section: "A",
-            rollNumber: "",
-            dateOfBirth: "",
-            dateOfAdmission: new Date().toISOString().split('T')[0],
-            gender: "Male",
-            parents: {
-                father: { name: "", aadhaarNumber: "" },
-                mother: { name: "", aadhaarNumber: "" }
-            },
-            address: "",
-            email: [],
-            mobile: [{ value: "" }],
-            pen: "",
-            lastInstitution: "",
-            tcNumber: "",
-            documents: [],
-        })
-        setPhoto(null)
+        form.reset();
+        setPhotoFile(null);
+        setDocumentFiles([]);
         getNextRegistrationNumber().then(setNextRegNo);
         router.refresh()
       } else {
         toast.error(`Failed to admit student: ${result.error}`)
       }
     } catch (error) {
-      console.error(error)
+      logger.error(error)
       toast.error("Something went wrong")
     } finally {
       setIsLoading(false)
@@ -351,13 +393,13 @@ export function AdmissionForm({ classes }: AdmissionFormProps) {
                 <h3 className="text-lg font-medium">Parent Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border p-4 rounded-md">
                     <div className="space-y-4">
-                        <h4 className="font-medium text-sm text-muted-foreground">Father's Details</h4>
+                        <h4 className="font-medium text-sm text-muted-foreground">Father&apos;s Details</h4>
                         <FormField
                             control={form.control}
                             name="parents.father.name"
                             render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Father's Name</FormLabel>
+                                <FormLabel>Father&apos;s Name</FormLabel>
                                 <FormControl>
                                 <Input placeholder="Father Name" {...field} />
                                 </FormControl>
@@ -370,7 +412,7 @@ export function AdmissionForm({ classes }: AdmissionFormProps) {
                             name="parents.father.aadhaarNumber"
                             render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Father's Aadhaar</FormLabel>
+                                <FormLabel>Father&apos;s Aadhaar</FormLabel>
                                 <FormControl>
                                 <Input placeholder="12-digit Aadhaar" maxLength={12} {...field} />
                                 </FormControl>
@@ -381,13 +423,13 @@ export function AdmissionForm({ classes }: AdmissionFormProps) {
                     </div>
 
                     <div className="space-y-4">
-                        <h4 className="font-medium text-sm text-muted-foreground">Mother's Details</h4>
+                        <h4 className="font-medium text-sm text-muted-foreground">Mother&apos;s Details</h4>
                         <FormField
                             control={form.control}
                             name="parents.mother.name"
                             render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Mother's Name</FormLabel>
+                                <FormLabel>Mother&apos;s Name</FormLabel>
                                 <FormControl>
                                 <Input placeholder="Mother Name" {...field} />
                                 </FormControl>
@@ -400,7 +442,7 @@ export function AdmissionForm({ classes }: AdmissionFormProps) {
                             name="parents.mother.aadhaarNumber"
                             render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Mother's Aadhaar</FormLabel>
+                                <FormLabel>Mother&apos;s Aadhaar</FormLabel>
                                 <FormControl>
                                 <Input placeholder="12-digit Aadhaar" maxLength={12} {...field} />
                                 </FormControl>
@@ -525,8 +567,7 @@ export function AdmissionForm({ classes }: AdmissionFormProps) {
                     <div className="space-y-2">
                         <FormLabel>Student Photo</FormLabel>
                         <FileUploader 
-                            value={photo} 
-                            onChange={setPhoto} 
+                            onFileSelect={setPhotoFile} 
                             label="Upload Photo" 
                         />
                     </div>
@@ -534,7 +575,7 @@ export function AdmissionForm({ classes }: AdmissionFormProps) {
                     <div className="space-y-2 col-span-1 md:col-span-2">
                         <div className="flex items-center justify-between">
                             <FormLabel>Documents</FormLabel>
-                            <Button type="button" variant="outline" size="sm" onClick={() => appendDocument({ type: "", image: "", documentNumber: "" })}>
+                            <Button type="button" variant="outline" size="sm" onClick={() => appendDocument({ type: "", documentNumber: "" })}>
                                 <Plus className="mr-2 h-4 w-4" /> Add Document
                             </Button>
                         </div>
@@ -547,7 +588,10 @@ export function AdmissionForm({ classes }: AdmissionFormProps) {
                                         variant="destructive"
                                         size="icon"
                                         className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
-                                        onClick={() => removeDocument(index)}
+                                        onClick={() => {
+                                            removeDocument(index);
+                                            setDocumentFiles(prev => prev.filter(f => f.index !== index));
+                                        }}
                                     >
                                         <Trash className="h-3 w-3" />
                                     </Button>
@@ -578,26 +622,14 @@ export function AdmissionForm({ classes }: AdmissionFormProps) {
                                                 </FormItem>
                                             )}
                                         />
-                                        <FormField
-                                            control={form.control}
-                                            name={`documents.${index}.image`}
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-xs">Document Image</FormLabel>
-                                                    <FormControl>
-                                                        <FileUploader 
-                                                        value={field.value || null} 
-                                                        onChange={field.onChange} 
-                                                        label=""
-                                                            previewHeight={150}
-                                                            previewWidth={200}
-                                                            className="mt-0"
-                                                        />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
+                                        <div className="space-y-2">
+                                            <FormLabel className="text-xs">Document Image</FormLabel>
+                                            <FileUploader 
+                                                onFileSelect={(file) => handleDocumentFileChange(index, file)}
+                                                label=""
+                                                className="mt-0"
+                                            />
+                                        </div>
                                     </div>
                                 </Card>
                             ))}

@@ -75,7 +75,7 @@ export function LoginForm({ type }: LoginFormProps) {
         router.push(callbackUrl)
         router.refresh()
       }
-    } catch (error) {
+    } catch {
       toast.error("Something went wrong")
     } finally {
       setIsLoading(false)

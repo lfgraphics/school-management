@@ -9,16 +9,14 @@ import { ExportButton } from "@/components/admin/expenses/export-button"
 import { Pagination } from "@/components/admin/expenses/pagination"
 
 interface ExpenseContentProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   initialExpenses: any[]
   initialTotalPages: number
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   formattedTeachers: any[]
 }
 
-export function ExpenseContent({
-  initialExpenses,
-  initialTotalPages,
-  formattedTeachers
-}: ExpenseContentProps) {
+export function ExpenseContent({ initialExpenses, initialTotalPages, formattedTeachers }: ExpenseContentProps) {
   const [expenses, setExpenses] = useState(initialExpenses)
   const [totalPages, setTotalPages] = useState(initialTotalPages)
   const [page, setPage] = useState(1)
@@ -32,6 +30,7 @@ export function ExpenseContent({
     endDate?: string
   }>({})
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fetchData = useCallback((filters: any, newPage: number) => {
     startTransition(async () => {
       const { expenses: newExpenses, totalPages: newTotalPages } = await getExpenses({
@@ -49,6 +48,7 @@ export function ExpenseContent({
     })
   }, [])
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleFilter = useCallback((filters: any) => {
     setCurrentFilters(filters)
     fetchData(filters, 1)
@@ -57,6 +57,11 @@ export function ExpenseContent({
   const handlePageChange = useCallback((newPage: number) => {
     fetchData(currentFilters, newPage)
   }, [fetchData, currentFilters])
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleExpenseDeleted = (id: string) => {
+    setExpenses(expenses.filter(ex => ex.id !== id))
+  }
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">

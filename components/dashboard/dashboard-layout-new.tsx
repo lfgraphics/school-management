@@ -1,27 +1,51 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Users, FilePlus, UserRoundSearch, ClipboardList, X } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
-import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import Image from "next/image"
 import { CustomLineChart } from "@/components/dashboard/charts/line-chart"
 import { PaymentsTable } from "@/components/dashboard/payments-table"
-import { DashboardStats } from "@/actions/dashboard"
+
+interface Payment {
+  id: string
+  amount: number
+  studentName: string
+  contactNumber: string
+  studentPhoto?: string
+  status: string
+  type?: string
+  month?: number
+  year?: number
+  transactionDate?: Date
+}
+
+interface OverviewItem {
+  name: string
+  collected: number
+  pending: number
+}
+
+interface DashboardLayoutNewStats {
+  collected: number
+  pending: number
+  unpaid: number
+  overview: OverviewItem[]
+  recentSales: Payment[]
+}
 
 interface DashboardLayoutNewProps {
-  stats: any
+  stats: DashboardLayoutNewStats
 }
 
 export function DashboardLayoutNew({ stats }: DashboardLayoutNewProps) {
   // Map overview data for charts
-  const collectedData = stats.overview.map((item: any) => ({
+  const collectedData = stats.overview.map((item) => ({
     name: item.name,
     value: item.collected
   }))
 
-  const pendingData = stats.overview.map((item: any) => ({
+  const pendingData = stats.overview.map((item) => ({
     name: item.name,
     value: item.pending
   }))

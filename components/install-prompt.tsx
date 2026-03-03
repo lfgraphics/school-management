@@ -4,21 +4,29 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Download } from 'lucide-react'
 
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void> | void
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform?: string }>
+}
+
 export function InstallPrompt() {
-  const [isIOS, setIsIOS] = useState(false)
-  const [isStandalone, setIsStandalone] = useState(false)
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
+  const [isIOSDismissed, setIsIOSDismissed] = useState(false)
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+
+  const isIOS =
+    !isIOSDismissed &&
+    typeof window !== 'undefined' &&
+    /iPad|iPhone|iPod/.test(navigator.userAgent) &&
+    !('MSStream' in window)
+
+  const isStandalone =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(display-mode: standalone)').matches
 
   useEffect(() => {
-    setIsIOS(
-      /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
-    )
-
-    setIsStandalone(window.matchMedia('(display-mode: standalone)').matches)
-
-    const handleBeforeInstallPrompt = (e: any) => {
+    const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault()
-      setDeferredPrompt(e)
+      setDeferredPrompt(e as BeforeInstallPromptEvent)
     }
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
@@ -67,7 +75,7 @@ export function InstallPrompt() {
                 <line x1="12" y1="2" x2="12" y2="15" />
               </svg>
             </span>
-            and then "Add to Home Screen"
+            and then {`"Add to Home Screen"`}
             <span className="mx-1 inline-block">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -87,7 +95,7 @@ export function InstallPrompt() {
             </span>
             .
           </p>
-          <Button variant="outline" size="sm" onClick={() => setIsIOS(false)}>
+          <Button variant="outline" size="sm" onClick={() => setIsIOSDismissed(true)}>
             Close
           </Button>
         </div>

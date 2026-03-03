@@ -59,6 +59,10 @@ interface UnpaidStudent {
     amount: number;
     months: string[];
     photo?: string;
+    mobile: string[];
+    email: string[];
+    registrationNumber?: string;
+    rollNumber?: string;
 }
 
 interface OverviewData {
@@ -71,11 +75,15 @@ interface OverviewData {
 interface StudentDoc {
     _id: Types.ObjectId;
     name: string;
+    registrationNumber?: string;
     classId: { _id: Types.ObjectId; name: string };
     admissionDate?: Date;
     createdAt: Date;
+    rollNumber?: string;
     photo?: string;
-    contacts?: { mobile?: string[] };
+    contacts?: { mobile?: string[]; email?: string[] };
+    mobile?: string[];
+    email?: string[];
 }
 
 interface SaleDoc {
@@ -164,7 +172,7 @@ export async function getDashboardStats(filter: DashboardFilter) {
         studentQuery.classId = filter.classId;
     }
     const allStudents = await Student.find(studentQuery)
-        .select('name classId admissionDate createdAt photo')
+        .select('name classId admissionDate createdAt photo contacts registrationNumber rollNumber mobile email')
         .populate('classId', 'name')
         .lean();
         
@@ -323,6 +331,20 @@ export async function getDashboardStats(filter: DashboardFilter) {
         }
 
         if (studentUnpaidAmount > 0) {
+            const toStringArray = (value: unknown) =>
+                Array.isArray(value)
+                    ? value.filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+                    : [];
+
+            const mergedMobile = Array.from(new Set([
+                ...toStringArray(student.contacts?.mobile),
+                ...toStringArray(student.mobile)
+            ]));
+            const mergedEmail = Array.from(new Set([
+                ...toStringArray(student.contacts?.email),
+                ...toStringArray(student.email)
+            ]));
+
             totalUnpaid += studentUnpaidAmount;
             unpaidList.push({
                 id: student._id.toString(),
@@ -330,7 +352,11 @@ export async function getDashboardStats(filter: DashboardFilter) {
                 className: student.classId.name,
                 amount: studentUnpaidAmount,
                 months: studentUnpaidDetails,
-                photo: student.photo
+                photo: student.photo,
+                mobile: mergedMobile,
+                email: mergedEmail,
+                registrationNumber: student.registrationNumber,
+                rollNumber: student.rollNumber
             });
         }
     }
@@ -445,6 +471,26 @@ export async function getDashboardStats(filter: DashboardFilter) {
         revenueChange = 100;
     }
 
+    // Calculate Expense Change (Current vs Last Week)
+    const expenseThisWeekResult = await Expense.aggregate([
+        { $match: { expenseDate: { $gte: lastWeekStart, $lte: today }, status: 'active' } },
+        { $group: { _id: null, total: { $sum: "$amount" } } }
+    ]);
+    const expenseLastWeekResult = await Expense.aggregate([
+        { $match: { expenseDate: { $gte: twoWeeksAgoStart, $lt: lastWeekStart }, status: 'active' } },
+        { $group: { _id: null, total: { $sum: "$amount" } } }
+    ]);
+
+    const expenseThisWeek = expenseThisWeekResult[0]?.total || 0;
+    const expenseLastWeek = expenseLastWeekResult[0]?.total || 0;
+    
+    let expenseChange = 0;
+    if (expenseLastWeek > 0) {
+        expenseChange = Math.round(((expenseThisWeek - expenseLastWeek) / expenseLastWeek) * 100);
+    } else if (expenseThisWeek > 0) {
+        expenseChange = 100;
+    }
+
     // Calculate Pending Change (Current Month vs Last Month)
     const thisMonthStart = startOfMonth(today);
     const lastMonthStart = startOfMonth(subMonths(today, 1));
@@ -503,9 +549,10 @@ export async function getDashboardStats(filter: DashboardFilter) {
                 pending: cls.pending
             };
         }),
-        unpaidStudents: unpaidList.sort((a, b) => b.amount - a.amount).slice(0, 10),
+        unpaidStudents: unpaidList.sort((a, b) => b.amount - a.amount),
         revenueChange,
-        pendingChange
+        pendingChange,
+        expenseChange
     };
 }
 

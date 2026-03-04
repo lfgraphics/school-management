@@ -1,7 +1,7 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getClassesWithFees } from "@/actions/class"
 import { AddClassDialog } from "@/components/admin/add-class-dialog"
-import { UpdateFeeDialog } from "@/components/admin/update-fee-dialog"
+import { EditClassDialog } from "@/components/admin/edit-class-dialog"
 import { BackButton } from "@/components/ui/back-button"
 
 export default async function ClassesPage() {
@@ -42,7 +42,7 @@ export default async function ClassesPage() {
                   <TableCell>₹{(cls.admissionFee || 0).toLocaleString()}</TableCell>
                   <TableCell>₹{(cls.registrationFee || 0).toLocaleString()}</TableCell>
                   <TableCell className="text-right">
-                    <UpdateFeeDialog classId={cls.id} className={cls.name} />
+                    <EditClassDialog classData={cls} />
                   </TableCell>
                 </TableRow>
               ))

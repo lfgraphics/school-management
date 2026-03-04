@@ -2,11 +2,12 @@
 
 import { useState, useTransition } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Users, FilePlus, UserRoundSearch, ClipboardList, MessageCircle, Phone, CalendarCheck } from "lucide-react"
+import { Users, FilePlus, UserRoundSearch, ClipboardList, MessageCircle, Phone, CalendarCheck, IndianRupee } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { DashboardFilter } from "@/components/dashboard/dashboard-filter"
+import { Overview } from "@/components/dashboard/overview"
 import { CustomLineChart } from "@/components/dashboard/charts/line-chart"
 import { CustomPieChart } from "@/components/dashboard/charts/pie-chart"
 import { getDashboardStats } from "@/actions/dashboard"
@@ -92,13 +93,6 @@ export function DashboardContent({
     })
   }
 
-  // Map overview data for charts
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const collectedData = stats.overview.map((item: any) => ({
-    name: item.name,
-    value: item.collected
-  }))
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pendingData = stats.overview.map((item: any) => ({
     name: item.name,
@@ -119,9 +113,7 @@ export function DashboardContent({
     { name: 'Unpaid (Deficit)', value: stats.unpaid, color: '#ef4444' }
   ]
 
-  const revenueChange = stats.revenueChange
   const pendingChange = stats.pendingChange
-  const expenseChange = stats.expenseChange
 
   const normalizePhoneDigits = (value: string) => value.replace(/[^\d]/g, "")
 
@@ -170,42 +162,32 @@ export function DashboardContent({
         {/* Total Amount Collected Chart - Large Card */}
         <Card className="col-span-2 row-span-1 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-base font-bold">Total amount collected each month</CardTitle>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
-              Total Collection Recorded
-            </div>
+            <CardTitle className="text-base font-bold">Financial Overview</CardTitle>
           </CardHeader>
           <CardContent className="pl-0">
-            <CustomLineChart data={collectedData} color="#22c55e" height={200} />
+            <Overview data={stats.overview} />
           </CardContent>
         </Card>
 
         {/* Total Revenue */}
         <Card className="shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-bold">Total Revenue</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+            <IndianRupee className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">₹{stats.collected.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Income
-            </p>
-            <Progress value={revenueChange} className="mt-4 h-2" />
+            <div className="text-2xl font-bold">₹{stats.collected.toLocaleString()}</div>
           </CardContent>
         </Card>
 
         {/* Total Expenses */}
         <Card className="shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-bold">Total Expenses</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
+            <IndianRupee className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">₹{stats.totalExpenses.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Expenses
-            </p>
-            <Progress value={expenseChange} className="mt-4 h-2" />
+            <div className="text-2xl font-bold">₹{stats.totalExpenses.toLocaleString()}</div>
           </CardContent>
         </Card>
 
@@ -220,7 +202,7 @@ export function DashboardContent({
             </div>
           </CardHeader>
           <CardContent className="pl-0">
-            <CustomLineChart data={pendingData} color="#ef4444" height={200} />
+            <CustomLineChart data={pendingData} color="#ef4444" height={150} />
           </CardContent>
         </Card>
 
@@ -262,14 +244,19 @@ export function DashboardContent({
         {/* Pending This Month */}
         <Card className="shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-bold">Pending This Month</CardTitle>
+            <CardTitle className="text-sm font-medium">Pending This Month</CardTitle>
+            <IndianRupee className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">₹{stats.pending.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Awaiting Verification
+            <div className="text-2xl font-bold">₹{stats.pending.toLocaleString()}</div>
+            <p className={`text-xs ${pendingChange <= 0 ? "text-green-600" : "text-red-600"}`}>
+              {pendingChange > 0 ? "+" : ""}{pendingChange}% from last month
             </p>
-            <Progress value={pendingChange} className="mt-4 h-2" />
+            <Progress
+              value={Math.abs(stats.pendingChange)}
+              className="mt-2 h-1.5"
+              indicatorclassname={stats.pendingChange <= 0 ? "bg-green-600" : "bg-red-600"}
+            />
           </CardContent>
         </Card>
 

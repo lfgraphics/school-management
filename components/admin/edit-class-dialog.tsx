@@ -3,7 +3,7 @@
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
@@ -24,8 +24,8 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { Plus, Loader2 } from "lucide-react"
-import { createClass } from "@/actions/class"
+import { Loader2, Pencil } from "lucide-react"
+import { updateClassWithFees } from "@/actions/class"
 
 export const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -38,33 +38,59 @@ export const formSchema = z.object({
 
 export type FormValues = z.infer<typeof formSchema>
 
-export function AddClassDialog() {
+export interface EditClassDialogProps {
+  classData: {
+    id: string
+    name: string
+    monthlyFee: number
+    admissionFee: number
+    examFee: number
+    registrationFee: number
+  }
+}
+
+export function EditClassDialog({ classData }: EditClassDialogProps) {
   const [open, setOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: "",
-      monthlyFee: 0,
-      admissionFee: 0,
-      examinationFee: 0,
-      registrationFee: 0,
-      effectiveFrom: new Date().toISOString().split('T')[0],
+      name: classData.name,
+      monthlyFee: classData.monthlyFee,
+      admissionFee: classData.admissionFee,
+      examinationFee: classData.examFee,
+      registrationFee: classData.registrationFee,
+      effectiveFrom: "",
     },
     mode: "onChange",
   })
 
+  // Update form values when classData changes
+  useEffect(() => {
+    form.reset({
+      name: classData.name,
+      monthlyFee: classData.monthlyFee,
+      admissionFee: classData.admissionFee,
+      examinationFee: classData.examFee,
+      registrationFee: classData.registrationFee,
+      effectiveFrom: new Date().toISOString().split('T')[0],
+    })
+  }, [classData, form])
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true)
     try {
-      const result = await createClass(values)
+      const result = await updateClassWithFees({
+        classId: classData.id,
+        ...values
+      })
+      
       if (result.success) {
-        toast.success("Class created successfully")
+        toast.success("Class updated successfully")
         setOpen(false)
-        form.reset()
       } else {
-        toast.error(`Failed to create class: ${result.error}`)
+        toast.error(`Failed to update class: ${result.error}`)
       }
     } catch {
       toast.error("Something went wrong")
@@ -76,16 +102,15 @@ export function AddClassDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Class
+        <Button variant="ghost" size="icon">
+          <Pencil className="h-4 w-4" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-106.25">
         <DialogHeader>
-          <DialogTitle>Add New Class</DialogTitle>
+          <DialogTitle>Edit Class</DialogTitle>
           <DialogDescription>
-            Create a new class and set up fee structure.
+            Update class details and fee structure.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -108,7 +133,7 @@ export function AddClassDialog() {
               name="effectiveFrom"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Effective From</FormLabel>
+                  <FormLabel>Effective From (for fee changes)</FormLabel>
                   <FormControl>
                     <Input type="date" {...field} />
                   </FormControl>
@@ -116,7 +141,7 @@ export function AddClassDialog() {
                 </FormItem>
               )}
             />
-            
+
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -129,8 +154,8 @@ export function AddClassDialog() {
                       type="number" 
                       placeholder="0" 
                       {...field} 
-                      value={field.value}
-                      onChange={(e) => field.onChange(Number(e.target.value))}
+                      value={field.value} 
+                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
                     />
                   </FormControl>
                   <FormMessage />
@@ -148,8 +173,8 @@ export function AddClassDialog() {
                       type="number" 
                       placeholder="0" 
                       {...field} 
-                      value={field.value}
-                      onChange={(e) => field.onChange(Number(e.target.value))}
+                      value={field.value} 
+                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
                     />
                   </FormControl>
                   <FormMessage />
@@ -167,8 +192,8 @@ export function AddClassDialog() {
                       type="number" 
                       placeholder="0" 
                       {...field} 
-                      value={field.value}
-                      onChange={(e) => field.onChange(Number(e.target.value))}
+                      value={field.value} 
+                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
                     />
                   </FormControl>
                   <FormMessage />
@@ -186,8 +211,8 @@ export function AddClassDialog() {
                       type="number" 
                       placeholder="0" 
                       {...field} 
-                      value={field.value}
-                      onChange={(e) => field.onChange(Number(e.target.value))}
+                      value={field.value} 
+                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
                     />
                   </FormControl>
                   <FormMessage />
@@ -198,7 +223,7 @@ export function AddClassDialog() {
             <DialogFooter>
               <Button type="submit" disabled={isLoading}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Create Class
+                Save Changes
               </Button>
             </DialogFooter>
           </form>

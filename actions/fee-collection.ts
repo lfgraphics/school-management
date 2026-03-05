@@ -65,6 +65,29 @@ export async function collectFee(data: z.infer<typeof collectFeeSchema>, userId:
     // Use current session logic if needed, but here we rely on provided year
     const monthsToProcess = data.months ? data.months : []; // Removed +1 because month index from UI is 0-11
     
+    // Server-side validation: Ensure total amount equals months * monthly-fee
+    if (data.feeType === 'monthly' && monthsToProcess.length > 0) {
+      const student = await Student.findById(data.studentId).select('classId');
+      if (student) {
+        const classFee = await ClassFee.findOne({
+          classId: student.classId,
+          type: 'monthly',
+          isActive: true
+        });
+
+        if (classFee) {
+          const expectedTotal = classFee.amount * monthsToProcess.length;
+          // Allow for small floating point differences if any, though likely integers
+          if (Math.abs(data.amount - expectedTotal) > 0.1) {
+             return {
+               success: false,
+               error: `Invalid amount. Expected ₹${expectedTotal} for ${monthsToProcess.length} months, but got ₹${data.amount}.`
+             };
+          }
+        }
+      }
+    }
+
     // Check for existing payments based on fee type
     if (data.feeType === 'monthly' && monthsToProcess.length > 0) {
       for (const m of monthsToProcess) {

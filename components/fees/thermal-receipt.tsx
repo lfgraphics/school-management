@@ -51,9 +51,12 @@ export function ThermalReceipt({ receiptData }: ReceiptProps) {
         <div className="thermal-receipt bg-white text-black p-6 max-w-[80mm] mx-auto font-mono text-sm">
             {/* School Logo/Emblem */}
             <div className="flex justify-center mb-4">
-                <div className="w-20 h-20 rounded-full border-4 border-black flex items-center justify-center">
-                    <span className="text-2xl font-bold">MNS</span>
-                </div>
+                <img 
+                    src="/android-chrome-512x512.png" 
+                    alt="School Logo" 
+                    className="w-auto"
+                    style={{ maxHeight: '60px' }}
+                />
             </div>
 
             {/* School Name */}

@@ -160,15 +160,11 @@ export function FeeCollectionForm({ students, classes, userId }: FeeCollectionFo
   async function onSubmit(values: z.input<typeof formSchema>) {
     setIsLoading(true)
     try {
-      let unitAmount = Number(values.amount);
-      if (values.feeType === 'monthly' && values.months && values.months.length > 0) {
-        unitAmount = unitAmount / values.months.length;
-      }
-
+      // Send the total amount directly to the server
       const payload = {
         studentId: values.studentId,
         feeType: values.feeType,
-        amount: unitAmount,
+        amount: Number(values.amount),
         months: values.feeType === 'monthly' ? values.months : undefined,
         year: parseInt(values.year),
         examType: values.feeType === 'examination' ? values.examType : undefined,

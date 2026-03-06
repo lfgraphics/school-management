@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import { format } from 'date-fns'
+import { schoolConfig } from '@/lib/config'
 
 interface ReceiptProps {
     receiptData: {
@@ -64,7 +65,7 @@ export function ThermalReceipt({ receiptData }: ReceiptProps) {
 
             {/* School Name */}
             <div className="text-center mb-6">
-                <h1 className="text-xl font-bold">Modern Nursery School</h1>
+                <h1 className="text-xl font-bold">{schoolConfig.name}</h1>
                 <p className="text-xs mt-1">Fee Receipt</p>
             </div>
 

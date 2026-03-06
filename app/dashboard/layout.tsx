@@ -5,6 +5,7 @@ import { UserNav } from "@/components/dashboard/user-nav";
 import { MainNav } from "@/components/dashboard/main-nav";
 import Image from "next/image";
 import { X } from "lucide-react";
+import { schoolConfig } from "@/lib/config";
 
 export const dynamic = 'force-dynamic'
 
@@ -39,7 +40,7 @@ export default async function StaffLayout({
              </div>
              <X className="h-5 w-5 text-purple-600 font-bold stroke-3" />
              <div className="font-bold text-lg tracking-tight hidden md:block">
-                Modern Nursery School
+                {schoolConfig.name}
              </div>
           </div>
           <MainNav className="mx-6" role="staff" />

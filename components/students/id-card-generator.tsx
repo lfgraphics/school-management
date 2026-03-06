@@ -44,6 +44,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Image from "next/image"
 import { BackButton } from "../ui/back-button"
+import { schoolConfig } from "@/lib/config"
 
 const singleFormSchema = z.object({
   studentId: z.string().min(1, "Student is required"),
@@ -289,8 +290,8 @@ export function IDCardGenerator({ students, classes }: IDCardGeneratorProps) {
                   </div>
 
                   <div className="ml-2 flex flex-col justify-center text-white z-10 w-full">
-                    <h2 className="text-[14px] font-bold tracking-wide uppercase leading-tight">Modern Nursery School</h2>
-                    <p className="text-[8px] opacity-90 font-medium tracking-wider">MAU-275101, U.P.</p>
+                    <h2 className="text-[14px] font-bold tracking-wide uppercase leading-tight">{schoolConfig.name}</h2>
+                    <p className="text-[8px] opacity-90 font-medium tracking-wider">{schoolConfig.address}</p>
                   </div>
                 </div>
 

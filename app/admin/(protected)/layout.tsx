@@ -5,6 +5,7 @@ import { UserNav } from "@/components/dashboard/user-nav";
 import { MainNav } from "@/components/dashboard/main-nav";
 import Image from "next/image";
 import { X } from "lucide-react";
+import { schoolConfig } from "@/lib/config";
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +27,7 @@ export default async function AdminLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="border-b">
+      <header className="relative">
         <div className="flex h-16 items-center px-4 justify-between">
           <div className="flex items-center gap-3">
              <div className="relative h-10 w-32 flex items-center justify-center rounded-md overflow-hidden">
@@ -40,17 +41,17 @@ export default async function AdminLayout({
              </div>
              <X className="h-5 w-5 text-purple-600 font-bold stroke-3" />
              <div className="font-bold text-xl tracking-tight">
-                Modern Nursery School
+                {schoolConfig.name}
              </div>
           </div>
           <div className="flex items-center space-x-4">
             <UserNav user={session.user} />
           </div>
         </div>
-        <div className="border-t px-4 py-2 overflow-x-auto">
-          <MainNav role={session.user.role as "admin" | "staff"} />
-        </div>
       </header>
+      <div className="border-y px-4 py-2 overflow-x-auto bg-muted sticky top-0 z-10">
+        <MainNav role={session.user.role as "admin" | "staff"} />
+      </div>
       <main className="flex-1 space-y-4 p-8 pt-6">
         {children}
       </main>

@@ -1,9 +1,10 @@
 import type { MetadataRoute } from 'next'
+import { schoolConfig } from '@/lib/config'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Modern Nursery School',
-    short_name: 'MNS',
+    name: schoolConfig.name,
+    short_name: schoolConfig.shortName,
     description: 'Efficient school management system',
     start_url: '/',
     display: 'standalone',

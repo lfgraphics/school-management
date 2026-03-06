@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache"
 import { startOfDay, endOfDay } from "date-fns"
 import { Types } from "mongoose"
 import logger from "@/lib/logger"
+import { checkIsHoliday } from "@/actions/holiday"
 
 interface StudentDoc {
   _id: Types.ObjectId;
@@ -71,7 +72,7 @@ export async function getStudentsForAttendance(classId: string, section: string,
     const end = endOfDay(searchDate)
 
     // Parallel fetch: Students and Existing Attendance
-    const [students, existingAttendance] = await Promise.all([
+    const [students, existingAttendance, holidayCheck] = await Promise.all([
       Student.find({
         classId: classId,
         section: section,
@@ -81,12 +82,18 @@ export async function getStudentsForAttendance(classId: string, section: string,
         classId: classId,
         section: section,
         date: { $gte: start, $lte: end }
-      }).lean()
+      }).lean(),
+      checkIsHoliday(date)
     ])
 
     const attendanceDoc = existingAttendance as unknown as AttendanceDoc | null;
-    const isHoliday = attendanceDoc?.isHoliday || false;
-    const holidayReason = attendanceDoc?.holidayReason || null;
+    let isHoliday = attendanceDoc?.isHoliday || false;
+    let holidayReason = attendanceDoc?.holidayReason || null;
+
+    if (!attendanceDoc && holidayCheck.isHoliday) {
+      isHoliday = true;
+      holidayReason = holidayCheck.reason;
+    }
 
     const result: StudentForAttendance[] = (students as unknown as StudentDoc[]).map((s) => {
       let status: string | null = isHoliday ? 'Holiday' : null;

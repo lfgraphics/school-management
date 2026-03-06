@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import { format } from 'date-fns'
 
 interface ReceiptProps {
@@ -50,12 +51,14 @@ export function ThermalReceipt({ receiptData }: ReceiptProps) {
     return (
         <div className="thermal-receipt bg-white text-black p-6 max-w-[80mm] mx-auto font-mono text-sm">
             {/* School Logo/Emblem */}
-            <div className="flex justify-center mb-4">
-                <img 
+            <div className="flex justify-center mb-4 relative h-[120px]">
+                <Image 
                     src="/dark-logo.jpeg" 
                     alt="School Logo" 
-                    className="w-auto"
-                    style={{ maxHeight: '120px' }}
+                    className="object-contain"
+                    fill
+                    sizes="120px"
+                    priority
                 />
             </div>
 

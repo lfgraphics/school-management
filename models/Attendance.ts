@@ -14,6 +14,8 @@ const AttendanceSchema = new mongoose.Schema({
     remarks: { type: String }
   }],
   markedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  isHoliday: { type: Boolean, default: false },
+  holidayReason: { type: String },
 }, { timestamps: true });
 
 // Compound unique index to prevent duplicate entries for same class/section/date

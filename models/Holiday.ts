@@ -1,9 +1,17 @@
 import mongoose from 'mongoose';
 
 const HolidaySchema = new mongoose.Schema({
-  date: { type: Date, required: true, unique: true },
+  startDate: { type: Date, required: true },
+  endDate: { type: Date, required: true },
   description: { type: String, required: true },
   createdAt: { type: Date, default: Date.now }
 });
+
+// Force model rebuild in development to ensure schema changes (like removing hooks) are applied
+if (process.env.NODE_ENV !== 'production') {
+  if (mongoose.models.Holiday) {
+    delete mongoose.models.Holiday;
+  }
+}
 
 export default mongoose.models.Holiday || mongoose.model('Holiday', HolidaySchema);

@@ -36,26 +36,29 @@ import { addHoliday, deleteHoliday } from "@/actions/holiday"
 import { useRouter } from "next/navigation"
 
 const formSchema = z.object({
-  date: z.date(),
+  dateRange: z.object({
+    from: z.date({
+      message: "Start date is required",
+    }),
+    to: z.date().optional(),
+  }),
   description: z.string().min(1, "Description is required"),
 })
 
 interface HolidayListProps {
-  holidays: { id: string; date: string; description: string }[]
+  holidays: { id: string; startDate: string; endDate: string; description: string }[]
 }
 
 export function HolidayManager({ holidays: initialHolidays }: HolidayListProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
-  // Revert to using props directly
+  
   const holidays = initialHolidays;
 
   const form = useForm<z.infer<typeof formSchema>>({
-    
     resolver: zodResolver(formSchema) as Resolver<z.infer<typeof formSchema>>,
     defaultValues: {
-      date: new Date(),
       description: "",
     },
   })
@@ -63,15 +66,19 @@ export function HolidayManager({ holidays: initialHolidays }: HolidayListProps) 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true)
     try {
+      const fromDate = values.dateRange.from;
+      const toDate = values.dateRange.to || fromDate;
+
       const result = await addHoliday({
-        date: values.date.toISOString(),
+        startDate: fromDate.toISOString(),
+        endDate: toDate.toISOString(),
         description: values.description,
       })
 
       if (result.success) {
         toast.success("Holiday added successfully")
         form.reset({
-            date: new Date(),
+            dateRange: undefined,
             description: ""
         })
         router.refresh()
@@ -110,10 +117,10 @@ export function HolidayManager({ holidays: initialHolidays }: HolidayListProps) 
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="date"
+              name="dateRange"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Date</FormLabel>
+                  <FormLabel>Date Range</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -124,10 +131,17 @@ export function HolidayManager({ holidays: initialHolidays }: HolidayListProps) 
                             !field.value && "text-muted-foreground"
                           )}
                         >
-                          {field.value ? (
-                            format(field.value, "PPP")
+                          {field.value?.from ? (
+                            field.value.to ? (
+                              <>
+                                {format(field.value.from, "LLL dd, y")} -{" "}
+                                {format(field.value.to, "LLL dd, y")}
+                              </>
+                            ) : (
+                              format(field.value.from, "LLL dd, y")
+                            )
                           ) : (
-                            <span>Pick a date</span>
+                            <span>Pick a date range</span>
                           )}
                           <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                         </Button>
@@ -135,10 +149,11 @@ export function HolidayManager({ holidays: initialHolidays }: HolidayListProps) 
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
-                        mode="single"
+                        mode="range"
                         selected={field.value}
                         onSelect={field.onChange}
                         initialFocus
+                        numberOfMonths={2}
                       />
                     </PopoverContent>
                   </Popover>
@@ -153,7 +168,7 @@ export function HolidayManager({ holidays: initialHolidays }: HolidayListProps) 
                 <FormItem>
                   <FormLabel>Description</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g. Republic Day" {...field} />
+                    <Input placeholder="e.g. Winter Break" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -173,7 +188,7 @@ export function HolidayManager({ holidays: initialHolidays }: HolidayListProps) 
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Date</TableHead>
+                <TableHead>Date(s)</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -186,27 +201,38 @@ export function HolidayManager({ holidays: initialHolidays }: HolidayListProps) 
                   </TableCell>
                 </TableRow>
               ) : (
-                holidays.map((holiday) => (
-                  <TableRow key={holiday.id}>
-                    <TableCell>{format(new Date(holiday.date), "PPP")}</TableCell>
-                    <TableCell>{holiday.description}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(holiday.id)}
-                        disabled={deleting === holiday.id}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
-                        {deleting === holiday.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
+                holidays.map((holiday) => {
+                  const start = new Date(holiday.startDate);
+                  const end = new Date(holiday.endDate);
+                  const isSameDay = start.toDateString() === end.toDateString();
+                  
+                  return (
+                    <TableRow key={holiday.id}>
+                      <TableCell>
+                        {isSameDay 
+                          ? format(start, "PPP") 
+                          : `${format(start, "PPP")} - ${format(end, "PPP")}`
+                        }
+                      </TableCell>
+                      <TableCell>{holiday.description}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(holiday.id)}
+                          disabled={deleting === holiday.id}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          {deleting === holiday.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>

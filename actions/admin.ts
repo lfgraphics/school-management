@@ -107,3 +107,24 @@ export async function deleteStaff(id: string) {
     return { success: false, error: message };
   }
 }
+
+export async function updateStaffPassword(id: string, newPassword: string) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (session?.user.role !== 'admin') throw new Error('Unauthorized');
+
+    if (!newPassword || newPassword.length < 6) {
+        return { success: false, error: "Password must be at least 6 characters" };
+    }
+
+    await dbConnect();
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await User.findByIdAndUpdate(id, { password: hashedPassword });
+    revalidatePath("/admin/staff");
+    return { success: true };
+  } catch (error: unknown) {
+    logger.error(error, `Failed to update password for ${id}`);
+    const message = error instanceof Error ? error.message : "An unknown error occurred";
+    return { success: false, error: message };
+  }
+}

@@ -13,8 +13,9 @@ export default async function StaffDashboardPage() {
   if (!session) return null;
 
   const stats = await getStaffDashboardStats(session.user.id);
+  const isAdmin = session.user.role === 'admin';
 
   return (
-    <StaffDashboardContent stats={stats} />
+    <StaffDashboardContent stats={stats} isAdmin={isAdmin} />
   )
 }

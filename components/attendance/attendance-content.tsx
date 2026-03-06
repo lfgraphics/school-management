@@ -15,6 +15,7 @@ import {
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
+import { ArrowLeft } from "lucide-react"
 
 interface AttendanceContentProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -48,7 +49,17 @@ export function AttendanceContent({
   return (
     <div className="flex-1 space-y-4">      
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-2 md:space-y-0">
-        <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Attendance Reports</h2>
+        <div className="flex items-center gap-4">
+          {isAdmin && (
+            <Link href="/admin/dashboard">
+              <Button variant="outline" size="sm" className="gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                Back to Admin Dashboard
+              </Button>
+            </Link>
+          )}
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Attendance Reports</h2>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <Link href="/attendance/holidays">
             <Button variant="outline" size="sm">Manage Holidays</Button>

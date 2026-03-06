@@ -118,6 +118,205 @@ interface SaleDocExtended extends SaleDoc {
     transactionDate: Date;
 }
 
+async function calculateUnpaidStats(monthsToCheck: Date[], classIdFilter?: string) {
+    // 2. Efficiently Fetch Students and Fees
+    const studentQuery: Record<string, unknown> = { isActive: true };
+    if (classIdFilter && classIdFilter !== "all") {
+        studentQuery.classId = classIdFilter;
+    }
+    const allStudents = await Student.find(studentQuery)
+        .select('name classId admissionDate createdAt photo contacts registrationNumber rollNumber mobile email')
+        .populate('classId', 'name')
+        .lean();
+
+    const activeStudentIds = allStudents.map(s => (s as StudentDoc)._id);
+
+    const classFees = await ClassFee.find({ isActive: true }).lean();
+    const feeMap = new Map<string, FeeConfig[]>();
+    classFees.forEach((fee: unknown) => {
+        const f = fee as FeeConfig;
+        const cid = f.classId.toString();
+        if (!feeMap.has(cid)) feeMap.set(cid, []);
+        feeMap.get(cid)?.push(f);
+    });
+
+    // 3. Aggregate Paid Fees per Student (One doc per student with array of paid items)
+    const yearsToCheck = new Set(monthsToCheck.map(m => m.getFullYear()));
+    const paidFeesAgg = await FeeTransaction.aggregate([
+        {
+            $match: {
+                studentId: { $in: activeStudentIds },
+                status: { $in: ['verified', 'pending'] },
+                year: { $in: Array.from(yearsToCheck) }
+            }
+        },
+        {
+            $group: {
+                _id: "$studentId",
+                paid: {
+                    $push: {
+                        type: "$feeType",
+                        m: "$month",
+                        y: "$year",
+                        title: "$examType"
+                    }
+                }
+            }
+        }
+    ]);
+
+    // Create a fast lookup map: StudentID -> Set of "Type-Month-Year"
+    const studentPaidMap = new Map<string, Set<string>>();
+    paidFeesAgg.forEach((item: unknown) => {
+        const i = item as PaidFeeAggResult;
+        const set = new Set<string>();
+        i.paid.forEach((p) => {
+            if (p.type === 'monthly') {
+                set.add(`${p.type}-${p.m}-${p.y}`);
+            } else if (p.type === 'examination' && p.title) {
+                set.add(`${p.type}-${p.title}-${p.y}`);
+            } else {
+                set.add(`${p.type}-${p.y}`);
+            }
+        });
+        studentPaidMap.set(i._id.toString(), set);
+    });
+
+    const unpaidList: UnpaidStudent[] = [];
+    let totalUnpaid = 0;
+    let totalExpected = 0;
+    const monthlyUnpaidMap = new Map<string, number>(); // "Month-Year" -> Amount
+
+    // Helper to check payment using the Map (O(1))
+    const hasPaidFeeFast = (studentId: string, type: string, month: number | undefined, year: number, title?: string) => {
+        const paidSet = studentPaidMap.get(studentId);
+        if (!paidSet) return false;
+        if (type === 'monthly') return paidSet.has(`${type}-${month}-${year}`);
+        if (type === 'examination' && title) return paidSet.has(`${type}-${title}-${year}`);
+        return paidSet.has(`${type}-${year}`);
+    };
+
+    for (const s of allStudents) {
+        const student = s as StudentDoc;
+        const studentId = student._id.toString();
+        const studentFees = feeMap.get(student.classId._id.toString()) || [];
+        const admissionDate = new Date(student.admissionDate || student.createdAt);
+        const admMonth = admissionDate.getMonth() + 1;
+        const admYear = admissionDate.getFullYear();
+
+        let studentUnpaidAmount = 0;
+        const studentUnpaidDetails: string[] = [];
+
+        const monthlyFeeConfig = studentFees.find(f => f.type === 'monthly');
+        if (monthlyFeeConfig) {
+            const monthlyAmount = monthlyFeeConfig.amount;
+
+            for (const monthDate of monthsToCheck) {
+                const m = monthDate.getMonth() + 1;
+                const y = monthDate.getFullYear();
+                const monthKey = `${m}-${y}`;
+                const isAfterAdmission = (y > admYear) || (y === admYear && m >= admMonth);
+
+                if (isAfterAdmission) {
+                    totalExpected += monthlyAmount;
+
+                    if (!hasPaidFeeFast(studentId, 'monthly', m, y)) {
+                        studentUnpaidAmount += monthlyAmount;
+                        studentUnpaidDetails.push(`${format(monthDate, 'MMM')} ${y}`);
+
+                        // Accumulate monthly unpaid for overview
+                        const current = monthlyUnpaidMap.get(monthKey) || 0;
+                        monthlyUnpaidMap.set(monthKey, current + monthlyAmount);
+                    }
+                }
+            }
+        }
+
+        const examFeesConfig = studentFees.filter(f => f.type === 'examination');
+        for (const examFeeConfig of examFeesConfig) {
+            if (examFeeConfig.effectiveFrom) {
+                const examDate = new Date(examFeeConfig.effectiveFrom);
+                const examMonth = examDate.getMonth() + 1;
+                const examYear = examDate.getFullYear();
+
+                // Check if this exam falls within the filter period
+                const isDueInPeriod = monthsToCheck.some(d =>
+                    d.getMonth() + 1 === examMonth && d.getFullYear() === examYear
+                );
+                const isStudentEligible = (examYear > admYear) || (examYear === admYear && examMonth >= admMonth);
+
+                if (isDueInPeriod && isStudentEligible) {
+                    totalExpected += examFeeConfig.amount;
+
+                    // Check if specific exam (by title and year) is paid
+                    if (!hasPaidFeeFast(studentId, 'examination', undefined, examYear, examFeeConfig.title)) {
+                        studentUnpaidAmount += examFeeConfig.amount;
+                        studentUnpaidDetails.push(`${examFeeConfig.title || 'Examination Fee'} (${examYear})`);
+
+                        const examMonthKey = `${examMonth}-${examYear}`;
+                        const current = monthlyUnpaidMap.get(examMonthKey) || 0;
+                        monthlyUnpaidMap.set(examMonthKey, current + examFeeConfig.amount);
+                    }
+                }
+            }
+        }
+
+        // Admission Fee Logic (simplified)
+        const isAdmissionInPeriod = monthsToCheck.some(d =>
+            d.getMonth() + 1 === admMonth && d.getFullYear() === admYear
+        );
+
+        if (isAdmissionInPeriod) {
+            const admissionFeeConfig = studentFees.find(f => f.type === 'admission');
+
+            if (admissionFeeConfig) {
+                totalExpected += admissionFeeConfig.amount;
+
+                if (!hasPaidFeeFast(studentId, 'admission', undefined, admYear)) {
+                    studentUnpaidAmount += admissionFeeConfig.amount;
+                    studentUnpaidDetails.push(`Admission Fee`);
+
+                    const admKey = `${admMonth}-${admYear}`;
+                    const current = monthlyUnpaidMap.get(admKey) || 0;
+                    monthlyUnpaidMap.set(admKey, current + admissionFeeConfig.amount);
+                }
+            }
+        }
+
+        if (studentUnpaidAmount > 0) {
+            const toStringArray = (value: unknown) =>
+                Array.isArray(value)
+                    ? value.filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+                    : [];
+
+            const mergedMobile = Array.from(new Set([
+                ...toStringArray(student.contacts?.mobile),
+                ...toStringArray(student.mobile)
+            ]));
+            const mergedEmail = Array.from(new Set([
+                ...toStringArray(student.contacts?.email),
+                ...toStringArray(student.email)
+            ]));
+
+            totalUnpaid += studentUnpaidAmount;
+            unpaidList.push({
+                id: student._id.toString(),
+                name: student.name,
+                className: student.classId.name,
+                amount: studentUnpaidAmount,
+                months: studentUnpaidDetails,
+                photo: student.photo,
+                mobile: mergedMobile,
+                email: mergedEmail,
+                registrationNumber: student.registrationNumber,
+                rollNumber: student.rollNumber
+            });
+        }
+    }
+
+    return { unpaidList, totalUnpaid, totalExpected, monthlyUnpaidMap };
+}
+
 export async function getDashboardStats(filter: DashboardFilter) {
     try {
         await dbConnect();
@@ -208,202 +407,7 @@ export async function getDashboardStats(filter: DashboardFilter) {
             monthlyStatsMap.set(key, { ...current, expense: item.total });
         });
 
-        // 2. Efficiently Fetch Students and Fees
-        const studentQuery: Record<string, unknown> = { isActive: true };
-        if (filter.classId && filter.classId !== "all") {
-            studentQuery.classId = filter.classId;
-        }
-        const allStudents = await Student.find(studentQuery)
-            .select('name classId admissionDate createdAt photo contacts registrationNumber rollNumber mobile email')
-            .populate('classId', 'name')
-            .lean();
-
-        const activeStudentIds = allStudents.map(s => (s as StudentDoc)._id);
-
-        const classFees = await ClassFee.find({ isActive: true }).lean();
-        const feeMap = new Map<string, FeeConfig[]>();
-        classFees.forEach((fee: unknown) => {
-            const f = fee as FeeConfig;
-            const cid = f.classId.toString();
-            if (!feeMap.has(cid)) feeMap.set(cid, []);
-            feeMap.get(cid)?.push(f);
-        });
-
-        // 3. Aggregate Paid Fees per Student (One doc per student with array of paid items)
-        // This replaces fetching ALL transactions individually
-        const yearsToCheck = new Set(monthsToCheck.map(m => m.getFullYear()));
-        const paidFeesAgg = await FeeTransaction.aggregate([
-            {
-                $match: {
-                    studentId: { $in: activeStudentIds },
-                    status: { $in: ['verified', 'pending'] },
-                    year: { $in: Array.from(yearsToCheck) }
-                }
-            },
-            {
-                $group: {
-                    _id: "$studentId",
-                    paid: {
-                        $push: {
-                            type: "$feeType",
-                            m: "$month",
-                            y: "$year",
-                            title: "$examType" // Assuming examType field holds the title for examination fees
-                        }
-                    }
-                }
-            }
-        ]);
-
-        // Create a fast lookup map: StudentID -> Set of "Type-Month-Year"
-        const studentPaidMap = new Map<string, Set<string>>();
-        paidFeesAgg.forEach((item: unknown) => {
-            const i = item as PaidFeeAggResult;
-            const set = new Set<string>();
-            i.paid.forEach((p) => {
-                if (p.type === 'monthly') {
-                    set.add(`${p.type}-${p.m}-${p.y}`);
-                } else if (p.type === 'examination' && p.title) {
-                    set.add(`${p.type}-${p.title}-${p.y}`);
-                } else {
-                    set.add(`${p.type}-${p.y}`);
-                }
-            });
-            studentPaidMap.set(i._id.toString(), set);
-        });
-
-        const unpaidList: UnpaidStudent[] = [];
-        let totalUnpaid = 0;
-        let totalExpected = 0;
-
-        // Helper to check payment using the Map (O(1))
-        const hasPaidFeeFast = (studentId: string, type: string, month: number | undefined, year: number, title?: string) => {
-            const paidSet = studentPaidMap.get(studentId);
-            if (!paidSet) return false;
-            if (type === 'monthly') return paidSet.has(`${type}-${month}-${year}`);
-            if (type === 'examination' && title) return paidSet.has(`${type}-${title}-${year}`);
-            return paidSet.has(`${type}-${year}`);
-        };
-
-        const monthlyUnpaidMap = new Map<string, number>(); // "Month-Year" -> Amount
-
-        for (const s of allStudents) {
-            const student = s as StudentDoc;
-            const studentId = student._id.toString();
-            const studentFees = feeMap.get(student.classId._id.toString()) || [];
-            const admissionDate = new Date(student.admissionDate || student.createdAt);
-            const admMonth = admissionDate.getMonth() + 1;
-            const admYear = admissionDate.getFullYear();
-
-            let studentUnpaidAmount = 0;
-            const studentUnpaidDetails: string[] = [];
-
-            const monthlyFeeConfig = studentFees.find(f => f.type === 'monthly');
-            if (monthlyFeeConfig) {
-                const monthlyAmount = monthlyFeeConfig.amount;
-
-                for (const monthDate of monthsToCheck) {
-                    const m = monthDate.getMonth() + 1;
-                    const y = monthDate.getFullYear();
-                    const monthKey = `${m}-${y}`;
-                    const isAfterAdmission = (y > admYear) || (y === admYear && m >= admMonth);
-
-                    if (isAfterAdmission) {
-                        totalExpected += monthlyAmount;
-
-                        if (!hasPaidFeeFast(studentId, 'monthly', m, y)) {
-                            studentUnpaidAmount += monthlyAmount;
-                            studentUnpaidDetails.push(`${format(monthDate, 'MMM')} ${y}`);
-
-                            // Accumulate monthly unpaid for overview
-                            const current = monthlyUnpaidMap.get(monthKey) || 0;
-                            monthlyUnpaidMap.set(monthKey, current + monthlyAmount);
-                        }
-                    }
-                }
-            }
-
-            const examFeesConfig = studentFees.filter(f => f.type === 'examination');
-            for (const examFeeConfig of examFeesConfig) {
-                if (examFeeConfig.effectiveFrom) {
-                    const examDate = new Date(examFeeConfig.effectiveFrom);
-                    const examMonth = examDate.getMonth() + 1;
-                    const examYear = examDate.getFullYear();
-
-                    // Check if this exam falls within the filter period
-                    const isDueInPeriod = monthsToCheck.some(d =>
-                        d.getMonth() + 1 === examMonth && d.getFullYear() === examYear
-                    );
-                    const isStudentEligible = (examYear > admYear) || (examYear === admYear && examMonth >= admMonth);
-
-                    if (isDueInPeriod && isStudentEligible) {
-                        totalExpected += examFeeConfig.amount;
-
-                        // Check if specific exam (by title and year) is paid
-                        if (!hasPaidFeeFast(studentId, 'examination', undefined, examYear, examFeeConfig.title)) {
-                            studentUnpaidAmount += examFeeConfig.amount;
-                            studentUnpaidDetails.push(`${examFeeConfig.title || 'Examination Fee'} (${examYear})`);
-
-                            const examMonthKey = `${examMonth}-${examYear}`;
-                            const current = monthlyUnpaidMap.get(examMonthKey) || 0;
-                            monthlyUnpaidMap.set(examMonthKey, current + examFeeConfig.amount);
-                        }
-                    }
-                }
-            }
-
-            // Admission Fee Logic (simplified)
-            const isAdmissionInPeriod = monthsToCheck.some(d =>
-                d.getMonth() + 1 === admMonth && d.getFullYear() === admYear
-            );
-
-            if (isAdmissionInPeriod) {
-                const admissionFeeConfig = studentFees.find(f => f.type === 'admission');
-
-                if (admissionFeeConfig) {
-                    totalExpected += admissionFeeConfig.amount;
-
-                    if (!hasPaidFeeFast(studentId, 'admission', undefined, admYear)) {
-                        studentUnpaidAmount += admissionFeeConfig.amount;
-                        studentUnpaidDetails.push(`Admission Fee`);
-
-                        const admKey = `${admMonth}-${admYear}`;
-                        const current = monthlyUnpaidMap.get(admKey) || 0;
-                        monthlyUnpaidMap.set(admKey, current + admissionFeeConfig.amount);
-                    }
-                }
-            }
-
-            if (studentUnpaidAmount > 0) {
-                const toStringArray = (value: unknown) =>
-                    Array.isArray(value)
-                        ? value.filter((v): v is string => typeof v === "string" && v.trim().length > 0)
-                        : [];
-
-                const mergedMobile = Array.from(new Set([
-                    ...toStringArray(student.contacts?.mobile),
-                    ...toStringArray(student.mobile)
-                ]));
-                const mergedEmail = Array.from(new Set([
-                    ...toStringArray(student.contacts?.email),
-                    ...toStringArray(student.email)
-                ]));
-
-                totalUnpaid += studentUnpaidAmount;
-                unpaidList.push({
-                    id: student._id.toString(),
-                    name: student.name,
-                    className: student.classId.name,
-                    amount: studentUnpaidAmount,
-                    months: studentUnpaidDetails,
-                    photo: student.photo,
-                    mobile: mergedMobile,
-                    email: mergedEmail,
-                    registrationNumber: student.registrationNumber,
-                    rollNumber: student.rollNumber
-                });
-            }
-        }
+        const { unpaidList, totalUnpaid, totalExpected, monthlyUnpaidMap } = await calculateUnpaidStats(monthsToCheck, filter.classId);
 
         const processedOverview: OverviewData[] = monthsToCheck.map(month => {
             const m = month.getMonth() + 1;
@@ -796,6 +800,14 @@ export async function getStaffDashboardStats(userId: string) {
     ]);
     const myCollectionYesterday = collectionYesterdayResult[0]?.total || 0;
 
+    // 9. Unpaid Students (For Staff Dashboard)
+    // Using current year as default range for unpaid calculation
+    const currentYearStart = startOfMonth(new Date(new Date().getFullYear(), 0, 1));
+    const currentMonthEnd = endOfMonth(new Date());
+    const monthsForUnpaid = eachMonthOfInterval({ start: currentYearStart, end: currentMonthEnd });
+    
+    const { unpaidList } = await calculateUnpaidStats(monthsForUnpaid);
+
 
     return {
         myCollectionToday,
@@ -823,6 +835,7 @@ export async function getStaffDashboardStats(userId: string) {
         globalPendingTrend,
         totalCollected,
         totalPending,
-        totalRejected
+        totalRejected,
+        unpaidStudents: unpaidList.sort((a, b) => b.amount - a.amount)
     };
 }

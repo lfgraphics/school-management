@@ -1,12 +1,14 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Users, UserRoundSearch, ClipboardList, CreditCard } from "lucide-react"
+import { Users, UserRoundSearch, ClipboardList, CreditCard, ArrowLeft } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
 import { CustomLineChart } from "@/components/dashboard/charts/line-chart"
 import { CustomPieChart } from "@/components/dashboard/charts/pie-chart"
 import { PaymentsTable } from "@/components/dashboard/payments-table"
+import { UnpaidStudentsTable, UnpaidStudent } from "@/components/dashboard/unpaid-students-table"
+import { Button } from "@/components/ui/button"
 
 interface StaffDashboardStats {
     myCollectionToday: number
@@ -24,14 +26,17 @@ interface StaffDashboardStats {
     totalCollected: number
     totalPending: number
     totalRejected: number
+    unpaidStudents: UnpaidStudent[]
 }
 
 interface StaffDashboardContentProps {
     stats: StaffDashboardStats
+    isAdmin?: boolean
 }
 
 export function StaffDashboardContent({ 
     stats, 
+    isAdmin = false
 }: StaffDashboardContentProps) {
     
     // Map data for charts
@@ -72,7 +77,17 @@ export function StaffDashboardContent({
         <div className="flex-1 space-y-4 p-8 pt-6 bg-background">
             {/* Header Controls */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0 mb-6">
-                <h2 className="text-2xl font-bold tracking-tight">Staff Dashboard Overview</h2>
+                <div className="flex items-center gap-4">
+                    {isAdmin && (
+                        <Link href="/admin/dashboard">
+                            <Button variant="outline" size="sm" className="gap-2">
+                                <ArrowLeft className="h-4 w-4" />
+                                Back to Admin Dashboard
+                            </Button>
+                        </Link>
+                    )}
+                    <h2 className="text-2xl font-bold tracking-tight">Staff Dashboard Overview</h2>
+                </div>
             </div>
             
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -227,6 +242,8 @@ export function StaffDashboardContent({
                 </Card>
 
             </div>
+
+            <UnpaidStudentsTable students={stats.unpaidStudents} />
 
             {/* Payments Table */}
             <Card className="col-span-4 shadow-sm mt-4">

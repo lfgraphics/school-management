@@ -9,11 +9,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
-import { MoreHorizontal, Trash, Power } from "lucide-react"
+import { MoreHorizontal, Trash, Power, KeyRound } from "lucide-react"
 import { toast } from "sonner"
 import { deleteStaff, toggleStaffStatus } from "@/actions/admin"
 import { useState } from "react"
 import { Loader2 } from "lucide-react"
+import { ChangePasswordDialog } from "./change-password-dialog"
 
 interface StaffActionsProps {
     id: string;
@@ -24,6 +25,7 @@ interface StaffActionsProps {
 
 export function StaffActions({ id, isActive }: StaffActionsProps) {
   const [isLoading, setIsLoading] = useState(false)
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
 
   async function handleToggleStatus() {
     setIsLoading(true)
@@ -60,25 +62,36 @@ export function StaffActions({ id, isActive }: StaffActionsProps) {
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-8 w-8 p-0" disabled={isLoading}>
-          <span className="sr-only">Open menu</span>
-          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-        <DropdownMenuItem onClick={handleToggleStatus}>
-          <Power className="mr-2 h-4 w-4" />
-          {isActive ? 'Deactivate' : 'Activate'}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleDelete} className="text-red-600">
-          <Trash className="mr-2 h-4 w-4" />
-          Delete
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <ChangePasswordDialog 
+        userId={id} 
+        open={isPasswordDialogOpen} 
+        onOpenChange={setIsPasswordDialogOpen} 
+      />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" className="h-8 w-8 p-0" disabled={isLoading}>
+            <span className="sr-only">Open menu</span>
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+          <DropdownMenuItem onClick={() => setIsPasswordDialogOpen(true)}>
+            <KeyRound className="mr-2 h-4 w-4" />
+            Change Password
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={handleToggleStatus}>
+            <Power className="mr-2 h-4 w-4" />
+            {isActive ? 'Deactivate' : 'Activate'}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={handleDelete} className="text-red-600">
+            <Trash className="mr-2 h-4 w-4" />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
   )
 }

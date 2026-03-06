@@ -72,12 +72,12 @@ function ReceiptContent() {
               left: 0;
               top: 0;
               width: 100%;
-              max-width: 80mm;
+              max-width: 75mm;
               margin: 0 auto;
               padding: 0;
             }
             @page {
-              size: 80mm auto;
+              size: 75mm auto;
               margin: 0;
             }
             /* Hide URL/Title headers if possible (browser dependent) */

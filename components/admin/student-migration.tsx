@@ -25,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useConfirm } from "@/context/ConfirmDialogContext"
 
 interface StudentMigrationProps {
   classes: { id: string; name: string }[]
@@ -39,6 +40,7 @@ export function StudentMigration({ classes }: StudentMigrationProps) {
   const [selectedStudents, setSelectedStudents] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isFetching, setIsFetching] = useState(false)
+  const { confirm } = useConfirm()
 
   // Reset state when tab changes
   const onTabChange = (value: string) => {
@@ -126,7 +128,12 @@ export function StudentMigration({ classes }: StudentMigrationProps) {
       return
     }
 
-    if (!confirm(`Are you sure you want to deactivate ${selectedStudents.length} students?`)) {
+    if (!await confirm({
+        title: "Bulk Deactivate",
+        description: `Are you sure you want to deactivate ${selectedStudents.length} students?`,
+        confirmText: "Deactivate",
+        variant: "destructive"
+    })) {
         return;
     }
 

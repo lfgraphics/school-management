@@ -1,69 +1,89 @@
-import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-export default withAuth(
-  function middleware(req) {
-    const token = req.nextauth.token;
-    const path = req.nextUrl.pathname;
-    const isAuth = !!token;
+// Define public paths that don't require license check
+const PUBLIC_PATHS = [
+  "/activate",
+  "/expired",
+  "/api/license", // Allow license API calls
+  "/api/auth", // Allow auth API calls
+  "/_next",
+  "/favicon.ico",
+  "/static",
+  "/images",
+  "/public"
+];
 
-    // 1. Handle Unauthenticated Users
-    if (!isAuth) {
-      // If accessing /admin/login, allow it
-      if (path === "/admin/login") {
-        return NextResponse.next();
-      }
+// Helper to check if license is valid
+async function checkLicense(req: NextRequest) {
+  // Check cookie cache first
+  const licenseStatus = req.cookies.get("license_status")?.value;
+  const licenseExpiry = req.cookies.get("license_expiry")?.value;
+  const licenseVerifiedAt = req.cookies.get("license_verified_at")?.value;
 
-      // If trying to access other admin routes, redirect to admin login
-      if (path.startsWith("/admin")) {
-        return NextResponse.redirect(new URL("/admin/login", req.url));
-      }
-
-      // For all other protected routes (dashboard, students, etc.), redirect to staff login
-      // Note: /login is not in the matcher, so we don't need to check for it explicitly here
-      return NextResponse.redirect(new URL("/login", req.url));
-    }
-
-    // 2. Handle Authenticated Users
+  if (licenseStatus === 'active' && licenseExpiry) {
+    const expiryDate = new Date(parseInt(licenseExpiry));
     
-    // Admin routes protection
-    if (path.startsWith("/admin")) {
-      // If accessing login page while logged in, let the page handle the redirect
-      // (The page component checks session and redirects if needed)
-      if (path === "/admin/login") {
-         return NextResponse.next();
-      }
-      
-      // For other admin routes, check role
-      if (token?.role !== "admin") {
-        // Allow staff to access expenses
-        if (token?.role === "staff" && path.startsWith("/admin/expenses")) {
-             return NextResponse.next();
-        }
-
-        // Non-admin trying to access admin pages
-        return NextResponse.redirect(new URL("/dashboard", req.url));
-      }
+    // Check if cookie is expired
+    if (expiryDate <= new Date()) {
+        return { valid: false, needsValidation: true };
     }
 
-    // Allow access to other protected routes
-    return NextResponse.next();
-  },
-  {
-    callbacks: {
-      // Always return true to let the middleware function handle all logic
-      // including unauthenticated redirection
-      authorized: () => true,
-    },
+    // Check if verification is stale (Force re-check every 5 minutes)
+    // This allows admin updates (revoke/expire) to propagate reasonably fast
+    if (!licenseVerifiedAt || (Date.now() - parseInt(licenseVerifiedAt) > 5 * 60 * 1000)) {
+        return { valid: false, needsValidation: true };
+    }
+
+    return { valid: true };
   }
-);
+
+  return { valid: false, needsValidation: true };
+}
+
+export async function proxy(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  // Skip public paths
+  if (PUBLIC_PATHS.some(path => pathname.startsWith(path))) {
+    return NextResponse.next();
+  }
+
+  // Check License
+  const licenseCheck = await checkLicense(req);
+
+  if (licenseCheck.valid) {
+    return NextResponse.next();
+  }
+
+  if (licenseCheck.needsValidation) {
+    // Redirect to validation endpoint
+    const url = new URL("/api/license/validate", req.url);
+    url.searchParams.set("next", pathname);
+    return NextResponse.redirect(url);
+  }
+
+  // If license is missing/invalid but NOT needing validation (e.g. cookie check failed explicitly)
+  // Check if expired cookie is present
+  const licenseStatus = req.cookies.get("license_status")?.value;
+  if (licenseStatus === 'expired') {
+      return NextResponse.redirect(new URL("/expired", req.url));
+  }
+
+  // If validation failed or no license, redirect to activate
+  return NextResponse.redirect(new URL("/activate", req.url));
+}
 
 export const config = {
   matcher: [
-    "/dashboard/:path*",
-    "/admin/:path*",
-    "/students/:path*",
-    "/fees/:path*",
-    "/id-cards/:path*",
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api (API routes) -> We handle specific API routes in PUBLIC_PATHS, others should be protected?
+     *   Actually, let's protect everything and allowlist specific APIs.
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };

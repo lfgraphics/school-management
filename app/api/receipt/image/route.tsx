@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
         const yearStr = searchParams.get('year');
         const examType = searchParams.get('examType');
         const title = searchParams.get('title');
-        const remarks = searchParams.get('remarks');
+        // const remarks = searchParams.get('remarks'); // Unused
 
         // Load Logo using the request origin
         const origin = request.nextUrl.origin;

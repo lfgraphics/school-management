@@ -5,6 +5,7 @@ import User from "@/models/User";
 import bcrypt from "bcryptjs";
 
 export const authOptions: NextAuthOptions = {
+  secret: process.env.NEXTAUTH_SECRET, // Ensure secret is explicitly passed
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -23,6 +24,12 @@ export const authOptions: NextAuthOptions = {
         
         let user;
         
+        // Handle empty DB / First launch (Optional: allow default admin if no users exist?)
+        // Actually, seeding should happen via activation.
+        // If DB is empty or no users, this will fail as expected.
+        
+        console.log("Authorize attempt for:", credentials.username || credentials.email);
+        
         // Login with username (Admin) or email (Staff)
         if (credentials.username && credentials.username !== "undefined" && credentials.username !== "null") {
           user = await User.findOne({ username: credentials.username });
@@ -31,18 +38,24 @@ export const authOptions: NextAuthOptions = {
         }
         
         if (!user) {
+          console.log("User not found in DB");
           throw new Error("User not found");
         }
         
         if (!user.isActive) {
+          console.log("User account is inactive");
           throw new Error("Account is inactive. Please contact administrator.");
         }
         
+        console.log("Found user, comparing passwords...");
         const isValid = await bcrypt.compare(credentials.password, user.password);
         
         if (!isValid) {
+          console.log("Password comparison failed");
           throw new Error("Invalid password");
         }
+        
+        console.log("Password comparison successful");
         
         return {
           id: user._id.toString(),

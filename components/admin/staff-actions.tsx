@@ -15,6 +15,7 @@ import { deleteStaff, toggleStaffStatus } from "@/actions/admin"
 import { useState } from "react"
 import { Loader2 } from "lucide-react"
 import { ChangePasswordDialog } from "./change-password-dialog"
+import { useConfirm } from "@/context/ConfirmDialogContext"
 
 interface StaffActionsProps {
     id: string;
@@ -26,6 +27,7 @@ interface StaffActionsProps {
 export function StaffActions({ id, isActive }: StaffActionsProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
+  const { confirm } = useConfirm()
 
   async function handleToggleStatus() {
     setIsLoading(true)
@@ -44,7 +46,12 @@ export function StaffActions({ id, isActive }: StaffActionsProps) {
   }
 
   async function handleDelete() {
-    if (!confirm("Are you sure you want to delete this staff member? This action cannot be undone.")) return
+    if (!await confirm({
+      title: "Delete Staff",
+      description: "Are you sure you want to delete this staff member? This action cannot be undone.",
+      confirmText: "Delete",
+      variant: "destructive"
+    })) return
 
     setIsLoading(true)
     try {

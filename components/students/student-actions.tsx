@@ -16,6 +16,7 @@ import { useState } from "react"
 import { Loader2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { useConfirm } from "@/context/ConfirmDialogContext"
 
 interface StudentActionsProps {
   id: string
@@ -25,9 +26,15 @@ interface StudentActionsProps {
 export function StudentActions({ id, isAdmin }: StudentActionsProps) {
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const { confirm } = useConfirm()
 
   async function handleDelete() {
-    if (!confirm("Are you sure you want to delete this student? This action cannot be undone.")) return
+    if (!await confirm({
+      title: "Delete Student",
+      description: "Are you sure you want to delete this student? This action cannot be undone.",
+      confirmText: "Delete",
+      variant: "destructive"
+    })) return
 
     setIsLoading(true)
     try {

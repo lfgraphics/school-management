@@ -49,7 +49,7 @@ export default async function StaffLayout({
           </div>
         </div>
       </header>
-      <main className="flex-1 space-y-4 p-8 pt-6">
+      <main className="flex-1 space-y-4 p-4 md:p-8 pt-6">
         {children}
       </main>
     </div>

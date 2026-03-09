@@ -22,10 +22,10 @@ export function DashboardFilter({
     isLoading 
 }: DashboardFilterProps) {
   return (
-    <div className="flex items-center space-x-2">
+    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:space-x-2 w-full sm:w-auto">
       <CalendarDateRangePicker date={date} setDate={setDate} />
       <Select value={classId} onValueChange={setClassId} disabled={isLoading}>
-        <SelectTrigger className="w-[180px]">
+        <SelectTrigger className="w-full sm:w-[180px]">
           <SelectValue placeholder="Select Class" />
         </SelectTrigger>
         <SelectContent>

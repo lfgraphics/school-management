@@ -5,14 +5,28 @@ import { usePathname } from "next/navigation"
 
 import { cn } from "@/lib/utils"
 
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Menu } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { useState } from "react"
+
 export function MainNav({
   className,
   role,
+  mobileOnly = false,
+  desktopOnly = false,
   ...props
-}: React.HTMLAttributes<HTMLElement> & { role: "admin" | "staff" }) {
+}: React.HTMLAttributes<HTMLElement> & { 
+  role: "admin" | "staff",
+  mobileOnly?: boolean,
+  desktopOnly?: boolean 
+}) {
   const pathname = usePathname()
+  const [open, setOpen] = useState(false)
 
   const adminRoutes = [
+    // ... existing routes
+
     {
       href: "/admin/dashboard",
       label: "Overview",
@@ -136,24 +150,63 @@ export function MainNav({
   const routes = role === "admin" ? adminRoutes : staffRoutes
 
   return (
-    <nav
-      className={cn("flex items-center space-x-4 lg:space-x-6 whitespace-nowrap", className)}
-      {...props}
-    >
-      {routes.map((route) => (
-        <Link
-          key={route.href}
-          href={route.href}
-          className={cn(
-            "text-sm font-medium transition-colors hover:text-primary",
-            route.active
-              ? "text-black dark:text-white"
-              : "text-muted-foreground"
-          )}
+    <>
+      {/* Desktop Navigation */}
+      {!mobileOnly && (
+        <nav
+          className={cn("flex items-center space-x-4 lg:space-x-6 whitespace-nowrap", className)}
+          {...props}
         >
-          {route.label}
-        </Link>
-      ))}
-    </nav>
+          {routes.map((route) => (
+            <Link
+              key={route.href}
+              href={route.href}
+              className={cn(
+                "text-sm font-medium transition-colors hover:text-primary",
+                route.active
+                  ? "text-black dark:text-white"
+                  : "text-muted-foreground"
+              )}
+            >
+              {route.label}
+            </Link>
+          ))}
+        </nav>
+      )}
+
+      {/* Mobile Navigation */}
+      {!desktopOnly && (
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="icon" className="mr-2 lg:hidden">
+              <Menu className="h-5 w-5" />
+              <span className="sr-only">Toggle menu</span>
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-[300px] sm:w-[400px] pr-0">
+            <SheetHeader className="px-1 text-left">
+              <SheetTitle>Menu</SheetTitle>
+            </SheetHeader>
+            <div className="flex flex-col space-y-3 mt-4 h-full pb-10 overflow-y-auto pl-1 pr-6">
+              {routes.map((route) => (
+                <Link
+                  key={route.href}
+                  href={route.href}
+                  onClick={() => setOpen(false)}
+                  className={cn(
+                    "text-sm font-medium transition-colors hover:text-primary py-2 px-2 rounded-md hover:bg-muted",
+                    route.active
+                      ? "text-black dark:text-white bg-muted"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  {route.label}
+                </Link>
+              ))}
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
+    </>
   )
 }

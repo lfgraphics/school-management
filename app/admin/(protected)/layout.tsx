@@ -27,10 +27,15 @@ export default async function AdminLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="relative">
+      <header className="sticky top-0 z-20 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="flex h-16 items-center px-4 justify-between">
           <div className="flex items-center gap-3">
-             <div className="relative h-10 w-32 flex items-center justify-center rounded-md overflow-hidden">
+             {/* Mobile Menu Trigger inside Header */}
+             <div className="lg:hidden">
+               <MainNav role={session.user.role as "admin" | "staff"} mobileOnly />
+             </div>
+
+             <div className="relative h-8 w-24 md:h-10 md:w-32 flex items-center justify-center rounded-md overflow-hidden">
                 <Image 
                   src="/feeEasyLogo.png" 
                   alt="feeEase" 
@@ -39,8 +44,8 @@ export default async function AdminLayout({
                   priority
                 />
              </div>
-             <X className="h-5 w-5 text-purple-600 font-bold stroke-3" />
-             <div className="font-bold text-xl tracking-tight">
+             <X className="h-4 w-4 md:h-5 md:w-5 text-purple-600 font-bold stroke-3 hidden sm:block" />
+             <div className="font-bold text-lg md:text-xl tracking-tight hidden sm:block">
                 {schoolConfig.name}
              </div>
           </div>
@@ -49,10 +54,13 @@ export default async function AdminLayout({
           </div>
         </div>
       </header>
-      <div className="border-y px-4 py-2 overflow-x-auto bg-muted sticky top-0 z-10">
-        <MainNav role={session.user.role as "admin" | "staff"} />
+      
+      {/* Secondary Nav Bar for Desktop - Restored */}
+      <div className="hidden lg:block border-y px-4 py-2 overflow-x-auto bg-muted sticky top-16 z-10">
+        <MainNav role={session.user.role as "admin" | "staff"} desktopOnly />
       </div>
-      <main className="flex-1 space-y-4 p-8 pt-6">
+      
+      <main className="flex-1 space-y-4 p-4 md:p-8 pt-6">
         {children}
       </main>
     </div>

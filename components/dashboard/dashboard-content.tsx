@@ -124,7 +124,7 @@ export function DashboardContent({
   // const expenseChange = stats.expenseChange
 
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6 bg-background">
+    <div className="flex-1 p-4 md:p-8 bg-background">
       {/* Header Controls */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0 mb-6">
         <h2 className="text-2xl font-bold tracking-tight">Dashboard Overview</h2>
@@ -141,11 +141,11 @@ export function DashboardContent({
         </div>
       </div>
 
-      <div className={`grid gap-4 md:grid-cols-2 lg:grid-cols-4 ${isPending ? 'opacity-50 pointer-events-none' : ''}`}>
+      <div className={`grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 ${isPending ? 'opacity-50 pointer-events-none' : ''}`}>
 
         {/* Row 1 */}
-        {/* Total Amount Collected Chart - Large Card */}
-        <Card className="col-span-2 row-span-1 shadow-sm">
+        {/* Total Amount Collected Chart - Large Card - Full width on mobile */}
+        <Card className="col-span-1 md:col-span-2 row-span-1 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-base font-bold">Financial Overview</CardTitle>
           </CardHeader>
@@ -154,31 +154,61 @@ export function DashboardContent({
           </CardContent>
         </Card>
 
-        {/* Total Revenue */}
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-            <IndianRupee className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">₹{stats.collected.toLocaleString()}</div>
-          </CardContent>
-        </Card>
+        {/* Total Revenue & Expenses - Side by side on mobile if possible, but keep 1 col for clarity on very small screens */}
+        <div className="grid grid-cols-2 gap-4 col-span-1 md:col-span-2 lg:col-span-2 lg:grid-cols-2">
+          {/* Total Revenue */}
+          <Card className="shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+              <CardTitle className="text-xs font-medium">Total Revenue</CardTitle>
+              <IndianRupee className="h-3 w-3 text-muted-foreground" />
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              <div className="text-lg md:text-2xl font-bold">₹{stats.collected.toLocaleString()}</div>
+            </CardContent>
+          </Card>
 
-        {/* Total Expenses */}
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
-            <IndianRupee className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">₹{stats.totalExpenses.toLocaleString()}</div>
-          </CardContent>
-        </Card>
+          {/* Total Expenses */}
+          <Card className="shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+              <CardTitle className="text-xs font-medium">Total Expenses</CardTitle>
+              <IndianRupee className="h-3 w-3 text-muted-foreground" />
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              <div className="text-lg md:text-2xl font-bold">₹{stats.totalExpenses.toLocaleString()}</div>
+            </CardContent>
+          </Card>
+
+          {/* Net Profit */}
+          <Card className="shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+              <CardTitle className="text-xs font-bold">Net Profit</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              <div className="text-xl md:text-3xl font-bold">₹{stats.netProfit.toLocaleString()}</div>
+              <p className="text-[10px] md:text-xs text-muted-foreground mt-1">
+                Income - Expense
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Reminders (Unpaid) */}
+          <Card className="shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+              <CardTitle className="text-xs font-bold">Reminders</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              <div className="text-xl md:text-3xl font-bold">₹{stats.unpaid.toLocaleString()}</div>
+              <p className="text-[10px] md:text-xs text-muted-foreground mt-1">
+                Total Unpaid / Deficit
+              </p>
+              <Progress value={pendingChange} className="mt-2 h-1.5" />
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Row 2 */}
         {/* Pending Fees Breakdown Chart - Large Card */}
-        <Card className="col-span-3 row-span-1 shadow-sm">
+        <Card className="col-span-1 md:col-span-2 lg:col-span-3 row-span-1 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-base font-bold">Pending Fees Breakdown</CardTitle>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -187,47 +217,12 @@ export function DashboardContent({
             </div>
           </CardHeader>
           <CardContent className="pl-0">
-            <CustomLineChart data={pendingData} color="#ef4444" height={150} />
+            <CustomLineChart data={pendingData} color="#ef4444" height={200} />
           </CardContent>
         </Card>
 
-        {/* Net Profit */}
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-bold">Net Profit</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">₹{stats.netProfit.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Income - Expense
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Row 3 */}
-        {/* Income vs Expense */}
-        <Card className="col-span-2 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base font-bold">Income vs Expense</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CustomPieChart data={profitData} height={250} />
-          </CardContent>
-        </Card>
-
-        {/* Collection Status */}
-        <Card className="col-span-2 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base font-bold">Total Fee Collection Breakdown</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CustomPieChart data={collectionStatusData} height={250} />
-          </CardContent>
-        </Card>
-
-        {/* Row 4 */}
-        {/* Pending This Month */}
-        <Card className="shadow-sm">
+        {/* Pending This Month - Small Card */}
+        <Card className="shadow-sm col-span-1 md:col-span-1 lg:col-span-1">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Pending This Month</CardTitle>
             <IndianRupee className="h-4 w-4 text-muted-foreground" />
@@ -245,126 +240,83 @@ export function DashboardContent({
           </CardContent>
         </Card>
 
-        {/* Row 2 */}
-
-        {/* Reminders (Unpaid) */}
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-bold">Reminders</CardTitle>
+        {/* Row 3 */}
+        {/* Income vs Expense */}
+        <Card className="col-span-1 md:col-span-2 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base font-bold">Income vs Expense</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">₹{stats.unpaid.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Total Unpaid / Deficit
-            </p>
-            <Progress value={pendingChange} className="mt-4 h-2" />
+            <CustomPieChart data={profitData} height={250} />
           </CardContent>
         </Card>
 
-        {/* New Student */}
-        <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-          <Link href="/students/admit" className="block h-full">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-bold">New Student</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center justify-center py-6">
-              <Users className="h-10 w-10 mb-2" strokeWidth={1.5} />
-              <span className="text-sm font-medium">Add new Student</span>
-            </CardContent>
-          </Link>
-        </Card>
-
-        {/* New Class */}
-        <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-          <Link href="/admin/classes" className="block h-full">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-bold">New Class</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center justify-center py-6">
-              <FilePlus className="h-10 w-10 mb-2" strokeWidth={1.5} />
-              <span className="text-sm font-medium">Add new Class</span>
-            </CardContent>
-          </Link>
-        </Card>
-
-        {/* Row 5 */}
-        {/* Find */}
-        <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-          <Link href="/students/list" className="block h-full">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-bold">Find</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center justify-center py-6">
-              <UserRoundSearch className="h-10 w-10 mb-2" strokeWidth={1.5} />
-              <span className="text-sm font-medium">Find Student</span>
-            </CardContent>
-          </Link>
-        </Card>
-
-        {/* Report */}
-        <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-          <Link href="/admin/reports" className="block h-full">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-bold">Report</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center justify-center py-6">
-              <ClipboardList className="h-10 w-10 mb-2" strokeWidth={1.5} />
-              <span className="text-sm font-medium text-center">Generate and Print Report</span>
-            </CardContent>
-          </Link>
-        </Card>
-
-        {/* Attendance */}
-        <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-          <Link href="/attendance/dashboard" className="block h-full">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-bold">Attendance</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center justify-center py-6">
-              <CalendarCheck className="h-10 w-10 mb-2" strokeWidth={1.5} />
-              <span className="text-sm font-medium text-center">Manage Attendance</span>
-            </CardContent>
-          </Link>
-        </Card>
-
-        {/* Features */}
-        {/* <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-bold">Features Can Be Added</CardTitle>
+        {/* Collection Status */}
+        <Card className="col-span-1 md:col-span-2 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base font-bold">Total Fee Collection Breakdown</CardTitle>
           </CardHeader>
-          <CardContent className="flex flex-col items-center justify-center py-6">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Feature</TableHead>
-                  <TableHead>Price</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow>
-                  <TableCell>WhatsApp Intigration</TableCell>
-                  <TableCell>5K - 15K</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>Attendance Automation</TableCell>
-                  <TableCell>8K - 25K</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+          <CardContent>
+            <CustomPieChart data={collectionStatusData} height={250} />
           </CardContent>
         </Card>
-        <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-          <Link href="/admin/reports" className="block h-full">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-bold">Report</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center justify-center py-6">
-              <ClipboardList className="h-10 w-10 mb-2" strokeWidth={1.5} />
-              <span className="text-sm font-medium text-center">Generate and Print Report</span>
-            </CardContent>
-          </Link>
-        </Card> */}
 
+        {/* Quick Actions Row - Horizontal Scroll on Mobile */}
+        <div className="col-span-1 md:col-span-2 lg:col-span-4 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0">
+          <div className="flex gap-4 md:grid md:grid-cols-4 min-w-[600px] md:min-w-0">
+            {/* New Student */}
+            <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer flex-1">
+              <Link href="/students/admit" className="block h-full">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-bold">New Student</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center justify-center py-6">
+                  <Users className="h-10 w-10 mb-2" strokeWidth={1.5} />
+                  <span className="text-sm font-medium">Add new Student</span>
+                </CardContent>
+              </Link>
+            </Card>
+
+            {/* New Class */}
+            <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer flex-1">
+              <Link href="/admin/classes" className="block h-full">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-bold">New Class</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center justify-center py-6">
+                  <FilePlus className="h-10 w-10 mb-2" strokeWidth={1.5} />
+                  <span className="text-sm font-medium">Add new Class</span>
+                </CardContent>
+              </Link>
+            </Card>
+
+            {/* Find */}
+            <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer flex-1">
+              <Link href="/students/list" className="block h-full">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-bold">Find</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center justify-center py-6">
+                  <UserRoundSearch className="h-10 w-10 mb-2" strokeWidth={1.5} />
+                  <span className="text-sm font-medium">Find Student</span>
+                </CardContent>
+              </Link>
+            </Card>
+
+            {/* Report */}
+            <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer flex-1">
+              <Link href="/admin/reports" className="block h-full">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-bold">Report</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center justify-center py-6">
+                  <ClipboardList className="h-10 w-10 mb-2" strokeWidth={1.5} />
+                  <span className="text-sm font-medium text-center">Generate and Print Report</span>
+                </CardContent>
+              </Link>
+            </Card>
+          </div>
+        </div>
       </div>
 
       {/* Unpaid Students Table */}

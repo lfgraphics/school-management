@@ -108,11 +108,13 @@ export function InstallPrompt() {
   }
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 md:left-auto md:right-4 md:w-auto">
-      <Button onClick={handleInstallClick} className="shadow-lg gap-2">
-        <Download className="h-4 w-4" />
-        Install App
-      </Button>
+    <div className="fixed bottom-4 left-0 right-0 z-50 flex justify-center pointer-events-none">
+      <div className="pointer-events-auto shadow-lg">
+          <Button onClick={handleInstallClick} className="gap-2 rounded-full" size="sm">
+            <Download className="h-4 w-4" />
+            Install App
+          </Button>
+      </div>
     </div>
   )
 }

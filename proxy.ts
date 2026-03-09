@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { jwtVerify } from "jose"; // We'll use this for signed cookies
 
 // Define public paths that don't require license check
 const PUBLIC_PATHS = [
@@ -14,24 +15,36 @@ const PUBLIC_PATHS = [
   "/public"
 ];
 
+const LICENSE_COOKIE_SECRET = new TextEncoder().encode(process.env.LICENSE_COOKIE_SECRET);
+
+// Helper to verify signed cookie
+async function verifySignedCookie(token: string | undefined) {
+    if (!token) return null;
+    try {
+        const { payload } = await jwtVerify(token, LICENSE_COOKIE_SECRET);
+        return payload as { status: string; expiry: number; verifiedAt: number };
+    } catch (e) {
+        return null; // Invalid signature
+    }
+}
+
 // Helper to check if license is valid
 async function checkLicense(req: NextRequest) {
-  // Check cookie cache first
-  const licenseStatus = req.cookies.get("license_status")?.value;
-  const licenseExpiry = req.cookies.get("license_expiry")?.value;
-  const licenseVerifiedAt = req.cookies.get("license_verified_at")?.value;
+  // Check signed cookie cache first
+  const signedCookie = req.cookies.get("license_session")?.value;
+  const payload = await verifySignedCookie(signedCookie);
 
-  if (licenseStatus === 'active' && licenseExpiry) {
-    const expiryDate = new Date(parseInt(licenseExpiry));
+  if (payload && payload.status === 'active') {
+    const expiryDate = new Date(payload.expiry);
     
-    // Check if cookie is expired
+    // Check if cookie is expired (time-based)
     if (expiryDate <= new Date()) {
         return { valid: false, needsValidation: true };
     }
 
-    // Check if verification is stale (Force re-check every 5 minutes)
-    // This allows admin updates (revoke/expire) to propagate reasonably fast
-    if (!licenseVerifiedAt || (Date.now() - parseInt(licenseVerifiedAt) > 5 * 60 * 1000)) {
+    // Check if verification is stale (Force re-check every 24 hours)
+    // 24 hours balances security with server load.
+    if (!payload.verifiedAt || (Date.now() - payload.verifiedAt > 24 * 60 * 60 * 1000)) {
         return { valid: false, needsValidation: true };
     }
 
@@ -63,14 +76,8 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // If license is missing/invalid but NOT needing validation (e.g. cookie check failed explicitly)
-  // Check if expired cookie is present
-  const licenseStatus = req.cookies.get("license_status")?.value;
-  if (licenseStatus === 'expired') {
-      return NextResponse.redirect(new URL("/expired", req.url));
-  }
-
   // If validation failed or no license, redirect to activate
+  // We can check if we have an explicit "expired" status in the signed cookie too, but simpler to just redirect to validate/activate
   return NextResponse.redirect(new URL("/activate", req.url));
 }
 

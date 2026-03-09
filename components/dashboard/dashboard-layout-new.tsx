@@ -56,7 +56,7 @@ export function DashboardLayoutNew({ stats }: DashboardLayoutNewProps) {
   const pendingChange = 10 // Placeholder
 
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6 bg-background">
+    <div className="flex-1 space-y-4 p-4 md:p-8 pt-6 bg-background">
       {/* Header */}
       <div className="flex items-center justify-between space-y-2 mb-6">
         <div className="flex items-center gap-2">

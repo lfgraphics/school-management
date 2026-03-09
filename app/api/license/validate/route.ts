@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import License from "@/models/License";
 import { verifyLicense } from "@/lib/license";
+import { SignJWT } from "jose";
 
 const FEEEASE_URL = process.env.FEEEASE_URL || "http://localhost:3001";
 
@@ -102,9 +103,24 @@ export async function GET(req: NextRequest) {
 
     // Valid License
     const validResponse = NextResponse.redirect(new URL(nextUrl, req.url));
-    validResponse.cookies.set("license_status", "active");
-    validResponse.cookies.set("license_expiry", expiryTimestamp.toString());
-    validResponse.cookies.set("license_verified_at", Date.now().toString()); // Timestamp for re-verification interval
+    
+    // Create signed cookie
+    const secret = new TextEncoder().encode(process.env.LICENSE_COOKIE_SECRET || "fallback_secret_must_change_in_prod");
+    const token = await new SignJWT({ 
+        status: "active", 
+        expiry: expiryTimestamp, 
+        verifiedAt: Date.now() 
+    })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setExpirationTime('24h') // Cookie valid for 24h (forces re-check naturally)
+    .sign(secret);
+
+    validResponse.cookies.set("license_session", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/"
+    });
     
     return validResponse;
 

@@ -303,6 +303,16 @@ export function UnpaidStudentsTable({ students }: UnpaidStudentsTableProps) {
                 )
               })
             )}
+            {students.length > 0 && (
+              <TableRow>
+                <TableCell colSpan={isWhatsAppEnabled ? 5 : 4} className="text-right font-medium">
+                  Total
+                </TableCell>
+                <TableCell className="text-right font-bold">
+                  ₹{students.reduce((total, student) => total + student.amount, 0).toLocaleString()}
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </CardContent>

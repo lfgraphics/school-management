@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from 'cloudinary';
 import logger from "@/lib/logger";
+import sharp from 'sharp';
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -17,7 +18,42 @@ cloudinary.config({
  */
 export async function saveFile(file: File, folder: string): Promise<string> {
   const bytes = await file.arrayBuffer();
-  const buffer = Buffer.from(bytes);
+  let buffer: Buffer = Buffer.from(bytes);
+
+  // Compress if it's an image
+  if (file.type.startsWith('image/')) {
+    try {
+      // Aim for 20-40 KB
+      const quality = 75;
+      const width = 1000;
+      
+      const sharpInstance = sharp(buffer)
+        .resize(width, width, { fit: 'inside', withoutEnlargement: true })
+        .webp({ quality }); // Using webp as it's most efficient for small sizes
+
+      buffer = await sharpInstance.toBuffer();
+
+      // If still over 40KB, aggressively compress
+      if (buffer.length > 40 * 1024) {
+        buffer = await sharp(buffer)
+          .resize(800, 800, { fit: 'inside' })
+          .webp({ quality: 50 })
+          .toBuffer();
+      }
+      
+      // If still over 40KB, even more aggressively compress
+      if (buffer.length > 40 * 1024) {
+        buffer = await sharp(buffer)
+          .resize(600, 600, { fit: 'inside' })
+          .webp({ quality: 30 })
+          .toBuffer();
+      }
+
+      logger.info(`Image compressed to ${Math.round(buffer.length / 1024)} KB`);
+    } catch (err) {
+      logger.error({ err }, "Image compression failed, using original file");
+    }
+  }
 
   // If Cloudinary env vars are present, upload to Cloudinary
   if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
@@ -52,7 +88,13 @@ export async function saveFile(file: File, folder: string): Promise<string> {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
 
-  const safeName = file.name.replace(/[^a-z0-9.]/gi, '_').toLowerCase();
+  let safeName = file.name.replace(/[^a-z0-9.]/gi, '_').toLowerCase();
+  
+  // If we converted to webp, ensure extension matches
+  if (file.type.startsWith('image/')) {
+    safeName = safeName.replace(/\.[^/.]+$/, "") + ".webp";
+  }
+  
   const filename = `${Date.now()}-${safeName}`;
 
   // Use /tmp for ephemeral storage in serverless if needed, or public/uploads for local dev

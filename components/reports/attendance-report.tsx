@@ -29,6 +29,8 @@ import {
 } from '@/components/ui/card';
 import { Search, FileSpreadsheet, FileText } from 'lucide-react';
 import { getAttendanceReport } from '@/actions/reports';
+import { getCurrentSessionRange } from '@/lib/utils';
+
 import {
   LineChart,
   Line,
@@ -49,10 +51,7 @@ interface AttendanceReportProps {
 }
 
 export default function AttendanceReport({ classes }: AttendanceReportProps) {
-  const [date, setDate] = useState<DateRange | undefined>({
-    from: startOfMonth(new Date()),
-    to: endOfMonth(new Date()),
-  });
+  const [date, setDate] = useState<DateRange | undefined>(getCurrentSessionRange());
   const [classId, setClassId] = useState('all');
   const [section, setSection] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');

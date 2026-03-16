@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, FilePlus, ClipboardList, IndianRupee, PlusCircle } from "lucide-react"
+import { Users, FilePlus, ClipboardList, IndianRupee, PlusCircle, Headset } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
 import { DashboardFilter } from "@/components/dashboard/dashboard-filter"
@@ -13,7 +13,7 @@ import { getDashboardStats } from "@/actions/dashboard"
 import { UnpaidStudentsTable, UnpaidStudent } from "@/components/dashboard/unpaid-students-table"
 import { DateRange } from "react-day-picker"
 import { subDays } from "date-fns"
-import { formatNumber } from "@/lib/utils"
+import { formatNumber, getCurrentSessionRange } from "@/lib/utils"
 interface DashboardStats {
   collected: number
   pending: number
@@ -81,10 +81,7 @@ export function DashboardContent({
   const [stats, setStats] = useState<DashboardStats>(initialStats)
   const [isPending, startTransition] = useTransition()
 
-  const [date, setDate] = useState<DateRange | undefined>({
-    from: subDays(new Date(), 30),
-    to: new Date(),
-  })
+  const [date, setDate] = useState<DateRange | undefined>(getCurrentSessionRange())
   const [classId, setClassId] = useState("all")
 
   const handleFilterChange = (newDate: DateRange | undefined, newClassId: string) => {
@@ -306,11 +303,11 @@ export function DashboardContent({
             <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer flex-1 w-full">
               <Link href={`${process.env.NEXT_PUBLIC_FEEEASE_URL}/contactus/school`} className="block h-full">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-bold">Request Add-ons</CardTitle>
+                  <CardTitle className="text-sm font-bold">Contact Us</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col items-center justify-center py-6">
-                  <PlusCircle className="h-10 w-10 mb-2" strokeWidth={1.5} />
-                  <span className="text-sm font-medium text-center">Ask for new features</span>
+                  <Headset className="h-10 w-10 mb-2" strokeWidth={1.5} />
+                  <span className="text-sm font-medium text-center">Ask for new features, Report a bug or issue etc.</span>
                 </CardContent>
               </Link>
             </Card>

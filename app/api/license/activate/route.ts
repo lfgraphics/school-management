@@ -4,6 +4,7 @@ import License from "@/models/License";
 import User from "@/models/User";
 import bcrypt from "bcryptjs";
 import { verifyLicense } from "@/lib/license";
+import WhatsAppPricing from "@/models/WhatsAppPricing";
 
 const FEEEASE_URL = process.env.NEXT_PUBLIC_FEEEASE_URL;
 
@@ -54,7 +55,14 @@ export async function POST(req: NextRequest) {
       lastVerifiedAt: new Date(),
     });
 
-    // 3. Seed Admin User
+    // 3. Seed initial WhatsApp pricing
+    await WhatsAppPricing.deleteMany({});
+    await WhatsAppPricing.create({
+      pricePerRequest: 0.50, // Seed 0.50 according to widespread usage in codebase
+      effectiveFrom: new Date('2025-04-01'), // Matching model's default
+    });
+
+    // 4. Seed Admin User
     // Check if admin already exists
     const existingAdmin = await User.findOne({ role: 'admin' });
     

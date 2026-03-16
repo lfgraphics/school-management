@@ -30,7 +30,7 @@ export function StudentsListContent({ initialStudents, classes, isAdmin = false 
   const [search, setSearch] = useState("")
   const [classFilter, setClassFilter] = useState("all")
   const [isPending, startTransition] = useTransition()
-  
+
   const debouncedSearch = useDebounce(search, 500)
 
   useEffect(() => {
@@ -46,7 +46,7 @@ export function StudentsListContent({ initialStudents, classes, isAdmin = false 
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Students</h2>
         <div className="flex items-center space-x-2">
-          <Link href={isAdmin ? "/admin/students/add" : "/students/add"}>
+          <Link href="/students/admit">
             <Button>
               <Plus className="mr-2 h-4 w-4" />
               Add Student
@@ -54,7 +54,7 @@ export function StudentsListContent({ initialStudents, classes, isAdmin = false 
           </Link>
         </div>
       </div>
-      
+
       <div className="flex items-center space-x-2 mb-4">
         <div className="relative w-[300px]">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -66,16 +66,16 @@ export function StudentsListContent({ initialStudents, classes, isAdmin = false 
           />
         </div>
         <Select value={classFilter} onValueChange={setClassFilter}>
-            <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by Class" />
-            </SelectTrigger>
-            <SelectContent>
-                <SelectItem value="all">All Classes</SelectItem>
-                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                {classes.map((c: any) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                ))}
-            </SelectContent>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Filter by Class" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Classes</SelectItem>
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+            {classes.map((c: any) => (
+              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+            ))}
+          </SelectContent>
         </Select>
       </div>
 

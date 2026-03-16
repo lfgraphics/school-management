@@ -17,7 +17,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-const isWhatsAppEnabled = process.env.NEXT_PUBLIC_ENABLE_WHATSAPP_INTEGRATION === 'true';
+import { whatsappConfig } from "@/lib/whatsapp-config";
+
+const isWhatsAppEnabled = whatsappConfig.enabled;
 
 interface UnpaidStudent {
   id: string

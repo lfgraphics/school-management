@@ -1,7 +1,7 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Users, UserRoundSearch, CreditCard, ArrowLeft, PlusCircle } from "lucide-react"
+import { Users, UserRoundSearch, CreditCard, ArrowLeft, PlusCircle, Headset } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
 import { CustomLineChart } from "@/components/dashboard/charts/line-chart"
@@ -195,11 +195,11 @@ export function StaffDashboardContent({
             <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer flex-1 w-full">
               <Link href={`${process.env.NEXT_PUBLIC_FEEEASE_URL}/contactus/school`} className="block h-full">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-bold">Request Add-ons</CardTitle>
+                  <CardTitle className="text-sm font-bold">Contact Us</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col items-center justify-center py-6">
-                  <PlusCircle className="h-10 w-10 mb-2" strokeWidth={1.5} />
-                  <span className="text-sm font-medium text-center">Ask for new features</span>
+                  <Headset className="h-10 w-10 mb-2" strokeWidth={1.5} />
+                  <span className="text-sm font-medium text-center">Ask for new features, Report a bug or issue etc.</span>
                 </CardContent>
               </Link>
             </Card>

@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Search, X } from 'lucide-react'
+import { getCurrentSessionRange } from '@/lib/utils'
+
 
 interface TransactionFiltersProps {
   classes: { id: string; name: string }[]
@@ -26,8 +28,8 @@ export function TransactionFilters({ classes, onFilter, isLoading }: Transaction
   const [classId, setClassId] = useState('all')
   const [feeType, setFeeType] = useState('all')
   const [status, setStatus] = useState('all')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  const [startDate, setStartDate] = useState(() => getCurrentSessionRange().from.toISOString().split('T')[0])
+  const [endDate, setEndDate] = useState(() => getCurrentSessionRange().to.toISOString().split('T')[0])
   const [month, setMonth] = useState('0')
   const [year, setYear] = useState('0')
 

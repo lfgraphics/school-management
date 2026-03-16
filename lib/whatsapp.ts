@@ -1,4 +1,4 @@
-import { whatsappConfig } from './whatsapp-config';
+import { whatsappConfig as whatsappConfigSchema } from './whatsapp-config';
 
 interface WhatsAppMessageResult {
   success: boolean;
@@ -28,22 +28,29 @@ interface AiSensyResponse {
     // Add other properties as needed based on actual API response
 }
 
+interface UniversalMessageParams {
+  parent_name: string;
+  notification_type: string;
+  student_name: string;
+  main_message: string;
+}
+
 export async function sendWhatsAppMessage({
   to,
-  userName,
-  campaignName,
-  params = [],
+  params,
+  messageType,
   mediaUrl,
-  mediaFilename
+  mediaFilename,
+  config
 }: {
   to: string;
-  userName: string;
-  campaignName: string;
-  params?: string[];
+  params: UniversalMessageParams;
+  messageType: 'text' | 'image';
   mediaUrl?: string;
   mediaFilename?: string;
+  config: typeof whatsappConfigSchema;
 }): Promise<WhatsAppMessageResult> {
-  if (!whatsappConfig.enabled) {
+  if (!config.enabled) {
     console.log('WhatsApp integration is disabled');
     return { success: true, messageId: 'disabled' };
   }
@@ -54,13 +61,25 @@ export async function sendWhatsAppMessage({
       throw new Error(`Invalid phone number: ${to}`);
     }
 
+    const template = messageType === 'image' 
+      ? config.templates.universal_image 
+      : config.templates.universal_text;
+
+    const templateParams = [
+      params.parent_name,
+      params.notification_type,
+      config.schoolName,
+      params.student_name,
+      params.main_message
+    ];
+
     const payload: WhatsAppPayload = {
-      apiKey: whatsappConfig.apiKey,
-      campaignName: campaignName,
+      apiKey: config.apiKey,
+      campaignName: template.campaignName,
       destination: validatedPhone,
-      userName: userName,
+      userName: params.parent_name, // Use parent's name for userName
       source: 'Fee Ease School Management System',
-      templateParams: params,
+      templateParams: templateParams,
     };
 
     if (mediaUrl && mediaFilename) {
@@ -70,9 +89,10 @@ export async function sendWhatsAppMessage({
       };
     }
 
-    console.log(`Sending WhatsApp message to ${validatedPhone} with campaign ${campaignName}`);
+    // This console log is helpful for debugging on the server.
+    // console.log(`Sending WhatsApp message to ${validatedPhone} with campaign ${campaignName}`);
 
-    const response = await fetch(whatsappConfig.baseUrl, {
+    const response = await fetch(config.baseUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -82,13 +102,8 @@ export async function sendWhatsAppMessage({
 
     const data = await response.json() as AiSensyResponse;
 
-    if (!response.ok) {
+    if (!response.ok || data.success === false) {
       throw new Error(data.message || `API Error: ${response.statusText}`);
-    }
-
-    // AiSensy success response usually has status: true/success
-    if (data.success === false) { 
-         throw new Error(data.message || 'Unknown error from AiSensy');
     }
 
     return { success: true, messageId: data.messageId || 'sent' };

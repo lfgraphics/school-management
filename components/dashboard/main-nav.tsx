@@ -9,6 +9,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/co
 import { Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
+import { whatsappConfig } from "@/lib/whatsapp-config"
 
 export function MainNav({
   className,
@@ -95,6 +96,11 @@ export function MainNav({
       label: "Reports",
       active: pathname.startsWith("/admin/reports"),
     },
+    ...(whatsappConfig.enabled ? [{
+      href: "/whatsapp",
+      label: "WhatsApp",
+      active: pathname.startsWith("/whatsapp"),
+    }] : []),
     {
       href: "/attendance/dashboard",
       label: "Attendance",
@@ -143,6 +149,11 @@ export function MainNav({
       label: "Expenses",
       active: pathname.startsWith("/admin/expenses"),
     },
+    ...(whatsappConfig.enabled ? [{
+      href: "/whatsapp",
+      label: "WhatsApp",
+      active: pathname.startsWith("/whatsapp"),
+    }] : []),
   ]
 
   const routes = role === "admin" ? adminRoutes : staffRoutes

@@ -45,6 +45,19 @@ export function getAcademicYearEnd(year: number): Date {
     return new Date(year + 1, 2, 31);
 }
 
+export function getCurrentSessionRange(): { from: Date; to: Date } {
+    const now = new Date();
+    const startYear = getCurrentSessionStartYear();
+    
+    // Start is April 1st of startYear
+    const from = getAcademicYearStart(startYear);
+    
+    // To is today
+    const to = now;
+    
+    return { from, to };
+}
+
 export function formatNumber(amount: number): string {
   return new Intl.NumberFormat('en-IN').format(amount);
 }

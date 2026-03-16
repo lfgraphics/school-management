@@ -166,8 +166,8 @@ export function UnpaidStudentsTable({ students }: UnpaidStudentsTableProps) {
         </div>
       </CardHeader>
       <CardContent className="max-h-[460px] overflow-auto">
-        <Table>
-          <TableHeader>
+        <Table className="relative">
+          <TableHeader className="sticky top-0">
             <TableRow>
               {isWhatsAppEnabled && (
                 <TableHead className="w-[40px]">
@@ -305,7 +305,7 @@ export function UnpaidStudentsTable({ students }: UnpaidStudentsTableProps) {
               })
             )}
             {students.length > 0 && (
-              <TableRow>
+              <TableRow className="bg-muted sticky bottom-0">
                 <TableCell colSpan={isWhatsAppEnabled ? 5 : 4} className="text-right font-medium">
                   Total
                 </TableCell>

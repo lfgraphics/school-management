@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/card';
 import { Search, FileSpreadsheet, FileText } from 'lucide-react';
 import { getFeeReport } from '@/actions/reports';
-import { formatNumber } from '@/lib/utils';
+import { formatNumber, getCurrentSessionRange } from '@/lib/utils';
 import {
   BarChart,
   Bar,
@@ -81,10 +81,7 @@ interface FeeReportProps {
 }
 
 export default function FeeReport({ classes }: FeeReportProps) {
-  const [date, setDate] = useState<DateRange | undefined>({
-    from: startOfMonth(new Date()),
-    to: endOfMonth(new Date()),
-  });
+  const [date, setDate] = useState<DateRange | undefined>(getCurrentSessionRange());
   const [classId, setClassId] = useState('all');
   const [section, setSection] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');

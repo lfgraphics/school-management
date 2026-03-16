@@ -8,10 +8,11 @@ import Class from "@/models/Class"
 import Counter from "@/models/Counter"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
-import { sendWhatsAppMessage } from "@/lib/whatsapp"
 import { whatsappConfig } from "@/lib/whatsapp-config"
-import { format } from "date-fns"
 import { getYearForMonth } from "@/lib/utils"
+import WhatsAppStat from "@/models/WhatsAppStat"
+import WhatsAppPricing from "@/models/WhatsAppPricing"
+import License from "@/models/License"
 
 const feeItemSchema = z.object({
   feeType: z.string().min(1, "Fee type is required"),
@@ -261,20 +262,52 @@ export async function collectFees(data: z.infer<typeof collectFeesSchema>, userI
           });
 
           const receiptUrl = `${whatsappConfig.appUrl}/api/receipt/image?receiptNumber=${baseReceiptNumber}&${queryParams.toString()}`;
-          
-          await sendWhatsAppMessage({
-            to: mobile,
-            userName: student.name,
-            campaignName: whatsappConfig.templates.receipt.campaignName,
-            params: [
-              student.name,
-              `₹${totalAmount}`,
-              baseReceiptNumber,
-              format(new Date(), 'dd MMM yyyy')
-            ],
+
+          // Get current pricing
+          const cost = await WhatsAppPricing.getCurrentPrice();
+
+          const stat = new WhatsAppStat({
+            type: 'receipt',
+            description: `Fee receipt for ${student.name} (₹${totalAmount})`,
+            recipientCount: 1,
+            cost,
+            status: 'failed',
             mediaUrl: receiptUrl,
-            mediaFilename: `Receipt-${baseReceiptNumber}.png`
           });
+          await stat.save();
+          
+          const license = await License.findOne().sort({ createdAt: -1 }).lean();
+          if (!license || !license.schoolId || !license.key) {
+             console.error("Worker configuration missing for WhatsApp integration.")
+             return;
+          }
+
+          const workerUrl = process.env.FEEEASE_WORKER_URL || 'http://localhost:4000';
+          const payload = {
+            schoolId: license.schoolId,
+            licenseKey: license.key,
+            mode: 'single',
+            campaignName: process.env.WHATSAPP_TEMPLATE_RECEIPT || 'fee_receipt_v1',
+            phone: mobile,
+            parentName: student.name, // using student as parent fallback
+            studentName: student.name,
+            amount: totalAmount.toString(),
+            receiptNumber: baseReceiptNumber,
+            month: "Current", // simplified
+            media: { url: receiptUrl, filename: `Receipt-${baseReceiptNumber}.png` }
+          };
+
+          const workerRes = await fetch(`${workerUrl}/api/v1/whatsapp/receipt`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          if (workerRes.ok) {
+            await WhatsAppStat.findByIdAndUpdate(stat._id, { status: 'success' });
+          } else {
+             console.error("Failed to send WhatsApp receipt via Worker:", await workerRes.text());
+          }
         }
     } catch (error) {
         console.error("Failed to send WhatsApp receipt:", error);

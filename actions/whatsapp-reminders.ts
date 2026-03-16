@@ -1,54 +1,109 @@
 "use server"
 
-import { tasks } from "@trigger.dev/sdk/v3";
-import { whatsappConfig } from "@/lib/whatsapp-config";
+import dbConnect from "@/lib/db"
+import WhatsAppStat from "@/models/WhatsAppStat"
+import WhatsAppPricing from "@/models/WhatsAppPricing"
+import License from "@/models/License"
+import mongoose from "mongoose"
 
+import { whatsappConfig } from "@/lib/whatsapp-config"
 export interface ReminderStudent {
-    id: string;
-    name: string;
-    contactNumber: string;
-    className: string;
-    details: string[];
-    amount: number;
+  id: string;
+  name: string;
+  contactNumber: string;
+  className: string;
+  details: string[];  // months/items that are due
+  amount: number;
 }
 
-export async function sendBulkReminders(students: ReminderStudent[], language: 'hindi' | 'english' | 'urdu') {
-    if (!whatsappConfig.enabled) {
-        return { success: false, error: "WhatsApp integration is disabled" }
+export async function sendBulkReminders(
+  students: ReminderStudent[],
+  language: 'hindi' | 'english' | 'urdu'
+) {
+  if (!whatsappConfig.enabled) {
+    return { success: false, error: "WhatsApp integration is disabled" };
+  }
+  if (students.length === 0) {
+    return { success: false, error: "No students provided" };
+  }
+
+  try {
+    await dbConnect();
+
+    const license = await License.findOne().sort({ createdAt: -1 }).lean();
+    if (!license || !license.schoolId || !license.key) {
+      return { success: false, error: "Worker configuration missing (Could not find License in DB)" };
     }
 
-    try {
-        if (students.length === 0) {
-             return { success: false, error: "No students provided" }
-        }
+    // 1. Pricing
+    const costPerMessage = await WhatsAppPricing.getCurrentPrice();
 
-        // Batching strategy: Split students into chunks to avoid timeouts and improve reliability
-        // Chunk size of 50 means 1000 students = 20 runs.
-        // This is safe for the free plan (5000 runs/month) and runs faster in parallel.
-        const BATCH_SIZE = 50;
-        const chunks = [];
-        for (let i = 0; i < students.length; i += BATCH_SIZE) {
-            chunks.push(students.slice(i, i + BATCH_SIZE));
-        }
+    // Filter out students with no contact
+    const validStudents = students.filter(
+      (s) => s.contactNumber && s.contactNumber !== 'N/A'
+    );
 
-        // Use Promise.all to trigger jobs in parallel. 
-        // This is equivalent to batching but uses the standard trigger method we know works.
-        const handles = await Promise.all(chunks.map(chunk => 
-            tasks.trigger("send-bulk-whatsapp-reminders", {
-                students: chunk,
-                language
-            })
-        ));
-
-        return {
-            success: true,
-            jobId: handles.map(h => h.id).join(', '),
-            message: `Started ${handles.length} background jobs for ${students.length} students`
-        }
-
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        console.error("Bulk reminder trigger error:", error)
-        return { success: false, error: errorMessage }
+    if (validStudents.length === 0) {
+      return { success: false, error: "No students with valid contact numbers" };
     }
+
+    // 2. Create pending stat record
+    const batchId = new mongoose.Types.ObjectId().toHexString();
+    await WhatsAppStat.create({
+      type: 'reminder',
+      description: `Bulk fee reminders (${language}) — ${validStudents.length} students`,
+      recipientCount: validStudents.length,
+      cost: costPerMessage * validStudents.length,
+      status: 'pending',
+      batchId,
+    });
+
+    // 3. Build strictly typed fields for Reminders
+    const recipients = validStudents.map((student) => {
+      const duesList = student.details.join(', ');
+      const totalAmount = `₹${student.amount.toLocaleString()}`;
+
+      return {
+        phone: student.contactNumber,
+        studentName: student.name,
+        parentName: student.name, // Fallback to student name if parent name not supplied in struct
+        dueAmount: totalAmount,
+        dueDate: "Immediately",
+        month: duesList
+      };
+    });
+
+    // 4. Fire to worker — bulk / async
+    const webhookUrl = `${whatsappConfig.appUrl}/api/whatsapp/webhook`;
+
+    const workerRes = await fetch(`${whatsappConfig.worker.url}/api/v1/whatsapp/reminders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        schoolId: license.schoolId,
+        licenseKey: license.key,
+        mode: 'bulk',
+        campaignName: whatsappConfig.templates[`reminder_${language}`] || whatsappConfig.templates.reminder_english,
+        recipients,
+        webhookUrl,
+        jobId: batchId,
+      }),
+    });
+
+    if (!workerRes.ok) {
+      const err = await workerRes.json().catch(() => ({ error: 'Worker error' }));
+      return { success: false, error: err.detail || err.error || 'Failed to schedule reminders' };
+    }
+
+    return {
+      success: true,
+      jobId: batchId,
+      message: `Fee reminders scheduled for ${validStudents.length} students. You will be notified when complete.`,
+    };
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error("Bulk reminder error:", error);
+    return { success: false, error: errorMessage };
+  }
 }

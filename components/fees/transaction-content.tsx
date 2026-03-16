@@ -10,6 +10,8 @@ import { BackButton } from "../ui/back-button"
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { getCurrentSessionRange } from "@/lib/utils"
+
 
 interface Transaction {
   id: string;
@@ -76,7 +78,13 @@ export function TransactionContent({
     endDate?: string
     month?: number
     year?: number
-  }>({})
+  }>(() => {
+    const { from, to } = getCurrentSessionRange()
+    return {
+      startDate: from.toISOString().split('T')[0],
+      endDate: to.toISOString().split('T')[0]
+    }
+  })
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fetchData = (filters: any, page: number) => {

@@ -12,6 +12,7 @@ import { startOfDay, endOfDay, startOfMonth, endOfMonth, eachMonthOfInterval, fo
 import { Types } from "mongoose"
 import logger from "@/lib/logger"
 import { unstable_cache } from "next/cache"
+import { getCurrentSessionRange } from "@/lib/utils"
 
 interface DashboardFilter {
     startDate?: Date;
@@ -353,8 +354,9 @@ export const getDashboardStats = unstable_cache(
         const collected = statsResult[0]?.collected || 0;
         const pending = statsResult[0]?.pending || 0;
 
-        const end = filter.endDate || endOfMonth(new Date());
-        const start = filter.startDate || startOfMonth(new Date(new Date().getFullYear(), 0, 1));
+        const { from: sessionStart, to: sessionEnd } = getCurrentSessionRange();
+        const start = filter.startDate || sessionStart;
+        const end = filter.endDate || sessionEnd;
         const monthsToCheck = eachMonthOfInterval({ start, end });
 
         // 1. Get Monthly Collected/Pending Stats via Aggregation

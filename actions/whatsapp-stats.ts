@@ -1,0 +1,34 @@
+"use server"
+
+import dbConnect from "@/lib/db";
+import WhatsAppStat from "@/models/WhatsAppStat";
+import WhatsAppPayment from "@/models/WhatsAppPayment";
+
+export async function getWhatsAppHistory() {
+  await dbConnect();
+  const historyDoc = await WhatsAppStat.find({}).sort({ createdAt: -1 }).lean();
+  const history = JSON.parse(JSON.stringify(historyDoc));
+  return history;
+}
+
+export async function getWhatsAppSummary() {
+  await dbConnect();
+
+  const totalCostResult = await WhatsAppStat.aggregate([
+    { $group: { _id: null, totalCost: { $sum: "$cost" } } },
+  ]);
+
+  const totalPaidResult = await WhatsAppPayment.aggregate([
+    { $group: { _id: null, totalPaid: { $sum: "$amount" } } },
+  ]);
+
+  const totalCost = totalCostResult[0]?.totalCost || 0;
+  const totalPaid = totalPaidResult[0]?.totalPaid || 0;
+  const balance = totalPaid - totalCost;
+
+  return {
+    totalCost,
+    totalPaid,
+    balance,
+  };
+}

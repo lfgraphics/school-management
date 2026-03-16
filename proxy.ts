@@ -20,7 +20,8 @@ const PUBLIC_PATHS = [
   "/feeEasyLogo.png",
   "/static",
   "/images",
-  "/public"
+  "/public",
+  "/api/whatsapp"
 ];
 
 const LICENSE_COOKIE_SECRET = new TextEncoder().encode(process.env.LICENSE_COOKIE_SECRET);

@@ -4,6 +4,8 @@ import { getClasses } from '@/actions/class'
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import dbConnect from '@/lib/db'
+import { getCurrentSessionRange } from '@/lib/utils'
+
 
 export const dynamic = 'force-dynamic'
 
@@ -16,9 +18,9 @@ export default async function TransactionsPage() {
   const session = await getServerSession(authOptions)
   const isAdmin = session?.user.role === 'admin'
 
-  // Initial load with no filters
-  const page = 1
-  const filter = {}
+  // Initial load with current session range
+  const { from: startDate, to: endDate } = getCurrentSessionRange()
+  const filter = { startDate, endDate }
 
   const [{ transactions, pagination }, stats, classes] = await Promise.all([
     getFeeTransactions(filter, page),

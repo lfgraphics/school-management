@@ -1,5 +1,6 @@
 "use server"
 
+import mongoose from "mongoose";
 import dbConnect from "@/lib/db"
 import Student from "@/models/Student"
 import Class from "@/models/Class"
@@ -460,6 +461,12 @@ export async function getStudents(searchQuery?: string, classId?: string) {
 
 export async function getStudentById(id: string) {
   await dbConnect();
+
+  // Validate if the ID is a valid ObjectId
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return null;
+  }
+
   const student = await Student.findById(id).populate('classId', 'name').lean();
   if (!student) return null;
   

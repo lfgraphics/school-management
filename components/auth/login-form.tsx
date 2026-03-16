@@ -3,7 +3,7 @@
 import { useForm, Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { signIn } from "next-auth/react"
+import { signIn, getSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -39,7 +39,6 @@ interface LoginFormProps {
 export function LoginForm({ type }: LoginFormProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get("callbackUrl") || (type === "admin" ? "/admin/dashboard" : "/dashboard")
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
@@ -75,7 +74,25 @@ export function LoginForm({ type }: LoginFormProps) {
         toast.error("Invalid credentials")
       } else {
         toast.success("Logged in successfully")
-        router.push(callbackUrl)
+        
+        // Fetch current session to determine role
+        const session = await getSession()
+        const userRole = session?.user?.role
+        
+        // Determine redirect URL based on role
+        let redirectUrl = searchParams.get("callbackUrl")
+        
+        if (!redirectUrl) {
+          if (userRole === "admin") {
+            redirectUrl = "/admin/dashboard"
+          } else if (userRole === "attendance_staff") {
+            redirectUrl = "/attendance/dashboard"
+          } else {
+            redirectUrl = "/dashboard"
+          }
+        }
+        
+        router.push(redirectUrl)
         router.refresh()
       }
     } catch {

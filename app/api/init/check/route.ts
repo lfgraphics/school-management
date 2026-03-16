@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/db';
 import License from '@/models/License';
 import User from '@/models/User';
+import WhatsAppPricing from '@/models/WhatsAppPricing';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,16 @@ export async function GET() {
         await dbConnect();
         const license = await License.findOne({});
         const admin = await User.findOne({ role: 'admin' });
+        
+        // Ensure initial pricing exists
+        const pricing = await WhatsAppPricing.findOne({});
+        if (!pricing) {
+            console.log("No WhatsApp pricing found, seeding initial pricing...");
+            await WhatsAppPricing.create({
+                pricePerRequest: 0.50,
+                effectiveFrom: new Date('2025-04-01'),
+            });
+        }
         
         return NextResponse.json({ 
             initialized: !!(license && admin),
